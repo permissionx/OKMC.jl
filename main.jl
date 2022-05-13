@@ -1,6 +1,11 @@
-using StaticArrays
+using StatsBase
 
 abstract type Defect end
+
+mutable struct Behaviors
+    displaces::Vector{Vector{Int64}}
+    probabilities::Vector{Float64}
+end
 
 mutable struct Sia <: Defect
     index::Int64
@@ -9,7 +14,7 @@ mutable struct Sia <: Defect
     size::Int64
     radius::Float64
     cellIndex::Int64
-    function Sia(coord::SVector{3,Int}, directionIndex::Int64, size::Int64)
+    function Sia(coord::Vector{Int64}, directionIndex::Int64, size::Int64)
         index = 0 
         cellIndex = 0
         new(index, coord, directionIndex, size, 0., cellIndex)
@@ -23,7 +28,7 @@ mutable struct Vac <: Defect
     size::Int64
     radius::Float64
     cellIndex::Int64
-    function Vac(coord::SVector{3,Int}, directionIndex::Int64, size::Int64)
+    function Vac(coord::Vector{Int64}, directionIndex::Int64, size::Int64)
         index = 0
         cellIndex = 0
         new(index, coord, directionIndex, size, 0., cellIndex)
@@ -47,6 +52,8 @@ mutable struct Universe
     cellLength::Int64
     nsCells::Vector{Int64} #numbers of cells in 3 dimensions
     cells::Array{Cell, 3}
+    sias::Vector{Sia}
+    vacs::Vector{Vac}
     function Universe(mapSize::Vector{Int64}, cellLength::Int64)
         nsCells = floor.(Int64, mapSize / cellLength)
         cells = Array{Cell, 3}(undef, nsCells[1], nsCells[2], nsCells[3])
@@ -55,7 +62,7 @@ mutable struct Universe
             cellIndex += 1
             cells[i] = Cell(cellIndex)
         end
-        new(0, mapSize, cellLength, nsCells, cells)
+        new(0, mapSize, cellLength, nsCells, cells, Sia, Vac[])
     end
 end
 
@@ -138,6 +145,7 @@ function Base.push!(universe::Universe, defect::Defect)
     universe.maxIndex += 1
     defect.index = universe.maxIndex
     Radius!(defect)
+    Changed!(universe, defect)
 end
 
 function CrossCells(universe::Universe, defect::Defect)
@@ -150,8 +158,9 @@ function CrossCells(universe::Universe, defect::Defect)
     end
 end
 
-function Delta(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int64})
-    delta = Vector{Int64}(coord1 - coord2)
+function Delta(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int64}) 
+    # vactor points from 1 to 2 
+    delta = Vector{Int64}(coord2 - coord1)
     for i in 1:3
         if delta[i] < -universe.mapSize[i] / 2
             delta[i] += universe.mapSize[i]
@@ -167,16 +176,122 @@ function Distance(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int6
     sqrt(sum(delta .* delta))
 end
 
-function FindNeighbor(universe::Universe, defect::Defect)
+function FindNeighbors(universe::Universe, defect::Defect)
     cell = defect.cell
-    neighborSias = cell.sias
-    neighborVacs = cell.vacs
+    neighborSias = Sia[]
+    neighborVacs = Vac[]
     for neighbor in cell.neighbors
         for sia in neighbor.sias
             if sia.directionIndex != defect.directionIndex
-                if Distance(universe, sia.coord, defect.coord) <= sia.radius+defect
+                if Distance(universe, sia.coord, defect.coord) <= sia.radius+defect.radius
+                    push!(neighborSias, sia)
+                end
+            end
+        end
+        for vac in neighbor.vacs
+            if vac.directionIndex != defect.directionIndex
+                if Distance(universe, vac.coord, defect.coord) <= vac.radius+defect.radius
+                    push!(neighborVacs, vac)
+                end
+            end
+        end
+    end
+    neighborSias, neighborVacs
+end
+
+function CoordInBCC(coord::Vector{Float64})
+    # To do: should shift to the nearest lattice point, but does not matter seriously
+    newCoord = Vector{Int64}(undef, 3)
+    newCoord[3] = Int64(round(coord[3]))
+    if iseven(newCoord[3])
+        for i in 1:2
+            x = floor(coord[i])
+            if iseven(x)
+                newCoord[i] = Int64(x)
+            else
+                newCoord[i] = Int64(x+1)
+            end
+        end
+    else
+        for i in 1:2
+            x = floor(coord[i])
+            if isodd(x)
+                newCoord[i] = Int64(x)
+            else
+                newCoord[i] = Int64(x+1)
+            end
+        end
+    end
+    newCoord
+end
+
+function Reaction!(universe::Universe, defect1::T, defect2::T) where T<:Union{Vac, Sia}
+    center = (defect1.coord*defect.size + defect2.coord*defect.size) / (defect1.size + defec2.size)
+    newCoord = CoordInBCC(center)
+    PBCCellCoord!(universe, newCoord)
+    defect = (defect1.size > defect2.size) ? defect1 : defect2
+    setSize!(defect, defect1.size + defect2.size)
+    delete!(universe, defect2)
+    Move!(defect, newCoord)
+end
+
+function Reaction!(universe::Universe, defect1::Union{Vac, Sia}, defect2::Union{Vac, Sia})
+    if defect1.size == defect2.size
+        delete!(universe, defect1)
+        delete!(universe, defect2)
+        return
+    elseif defect1.size > defect2.size
+        Swallow!(universe, defect1, defect2)
+    else
+        Swallow!(universe, defect2, defect1)
+    end
+end
+
+function Swallow!(universe::Universe, defect1::Union{Vac, Sia}, defect2::Union{Vac, Sia})
+    radius = defect1.radius 
+    SetSize!(defect1, defect1 - defect2)
+    moveLength = radius - defect1.radius
+    delta = Delta(universe, defect1.coord, defect2.coord)
+    distance = sqrt(sum(delta .* delta))
+    newCoordFloat = Vector{Float64}(undef,3)
+    for i in 1:3
+        newCoordFloat[i] -= moveLength * delte[i] / distance
+    end
+    newCoord = CoordInBCC(newCoordFloat)
+    PBCCellCoord!(universe, newCoord)
+    delete!(universe, defect2)
+    Move!(defect1, newCoord)
+end
+    
+
+function Move!(defect::Defect, coord::Vector{Int64})
+    defect.coord = coord
+    CrossCells(universe, defect)
+    Changed!(universe, defect)
+end
 
 
+function Changed!(universe::Universe, defect::Defect)
+    sias, vacs = FindNeighbors(universe, defect)
+    if length(sias) == 0 && length(vacs) == 0
+        return
+    elseif length(vacs) == 0
+        sia = sample(sias)
+        Reaction!(universe, defect, sia)
+    elseif length(sias) == 0
+        vac = sample(vacs)
+        Reaction!(universe, defect, vac)
+    else
+        typeNum = rand(1:length(sias)+length(vacs))
+        if typeNum <= length(sias)
+            sia = sample(sias)
+            Reaction!(universe, defect, sia)
+        else
+            vac = sample(vacs)
+            Reaction!(universe, defect, vac)
+        end
+    end
+end
 
 
 function Base.delete!(cell::Cell, sia::Sia)
@@ -184,7 +299,7 @@ function Base.delete!(cell::Cell, sia::Sia)
 end
 
 function Base.delete!(cell::Cell, vac::Vac)
-    deleteat(cell.vacs, findfirst(x->x.index==sia.index, cell.sias))
+    deleteat(cell.vacs, findfirst(x->x.index==vac.index, cell.vacs))
 end
 
 function Base.delete!(universe::Universe, defect::Defect)
@@ -208,11 +323,18 @@ function Radius!(defect::Defect)
     defect.radius = ((3*defect.size)/(4*pi))^(1/3)
 end
 
+function SetSize!(defect::Defect, size::Int64)
+    defect.size = size
+    Radius!(defect)
+end
+
 
 
 mapSize = [100,100,100]
 cellLength = 20
 universe = Universe(mapSize, cellLength)
 InitCells(universe)
-sia = Sia(SA[50,50,50], 1, 10)
+sia = Sia([50,50,50], 1, 10)
+vac = Vac([40,40,40], 1, 12)
 push!(universe, sia)
+push!(universe, vac)
