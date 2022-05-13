@@ -429,6 +429,7 @@ universe = Universe(mapSize, cellLength)
 const dumpName = "/mnt/c/Users/XUKE/Desktop/run.dump"
 RefreshFile!(dumpName)
 @time Run!(universe)
+#empty
 #using Profile, PProf
 #@profile Run!(universe)
 #pprof(;webport=58599)
