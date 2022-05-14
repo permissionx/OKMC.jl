@@ -1,36 +1,40 @@
 using StatsBase
 using Random
+using Distributions
 
 const SIA_DIRECTIONS = ([[1,1,1], 
                          [1,1,-1], 
                          [1,-1,1], 
                          [1,-1,-1]])
 
-
-const VAC_DIRECTIONS = ([[2,0,0], 
-                         [-2,0,0], 
-                         [0,2,0], 
-                         [0,-2,0], 
-                         [0,0,2], 
-                         [0,0,-2],
-                         [1,1,1], 
+const FIRST_NEIGHBORS = [[1,1,1], 
                          [1,1,-1], 
                          [1,-1,1], 
                          [1,-1,-1],
                          [-1,1,1], 
                          [-1,1,-1], 
                          [-1,-1,1], 
-                         [-1,-1,-1]])
+                         [-1,-1,-1]]
+
+const SECOND_NEIGHBORS = [[2,0,0], 
+                          [-2,0,0], 
+                          [0,2,0], 
+                          [0,-2,0], 
+                          [0,0,2], 
+                          [0,0,-2]]
+
+const SIA_DISAPPEAR_PROB = 1E-8
+
 
 mutable struct Behaviors
-    displaces::Vector{Vector{Int64}}
+    types::Vector{Float64}  #1 for diffusion, 2 for redirection
     probabilities::Vector{Float64}
     probability::Float64
     function Behaviors()
-        displaces = Vector{Vector{Int64}}()
+        types = Int64[]
         probabilities = Float64[]
         probability = 0.0
-        new(displaces, probabilities, probability)
+        new(types, probabilities, probability)
     end
 end
 
@@ -295,8 +299,6 @@ function Reaction!(universe::Universe, defect1::Defect, defect2::Defect)
 end
 
 
-    
-
 function Move!(universe::Universe, defect::Defect, coord::Vector{Int64})
     PBCCoord!(universe, coord)
     defect.coord = coord
@@ -313,29 +315,34 @@ function Changed!(universe::Universe, defect::Defect)
     end
 end
 
-function GetBehaviors(defect::Defect)
+function InitBehaviors!(universe::Universe, defect::Defect)
     if defect.type == 1
-        displaces = [SIA_DIRECTIONS[defect.directionIndex], -SIA_DIRECTIONS[defect.directionIndex]]
-        probabilities = SiaMigrationProbabilities(defect.size)
+        types = [1, 3]
+        probabilities = SiaProbabilities(defect.size)
     else
-        displaces = VAC_DIRECTIONS
-        probabilities = VacMigrationProbabilities(defect.size)
+        types = [1, 2]
+        probabilities = VacProbabilities(defect.size)
     end
     behaviors = Behaviors()
-    behaviors.displaces = displaces
+    behaviors.types = types
     behaviors.probabilities = probabilities
     probability = sum(probabilities)
     behaviors.probability = probability
     defect.behaviors = behaviors
-    probability
+    push!(universe.defectProbabilities, probability)
+    universe.totalProbability += probability
 end
 
-function SiaMigrationProbabilities(size::Int64)
-    return [1.,1.]
+
+function SiaProbabilities(size::Int64)
+    return [1.,0.001.]
 end
 
-function VacMigrationProbabilities(size::Int64)
-    return [1. for _ in 1:14]
+function VacProbabilities(size::Int64)
+    if size == 1
+        return Float64[1.,0.5]
+    else
+        return Float64[0,0]
 end
 
 
@@ -347,6 +354,7 @@ function Base.delete!(universe::Universe, defect::Defect)
     deleteat!(universe.defectProbabilities, i)
     universe.totalProbability -= defect.behaviors.probability
 end
+
 
 function Base.delete!(cell::Cell, defect::Defect)
     deleteat!(cell.defects, findfirst(x->x.index==defect.index, cell.defects))
@@ -360,10 +368,8 @@ function Base.push!(universe::Universe, defect::Defect)
     universe.maxIndex += 1
     defect.index = universe.maxIndex
     Radius!(defect)
-    probability = GetBehaviors(defect)
+    InitBehaviors!(universe, defect)
     push!(universe.defects, defect)
-    push!(universe.defectProbabilities, probability)
-    universe.totalProbability += probability
     Changed!(universe, defect)
 end
 
@@ -380,8 +386,18 @@ end
 function ChangeSize!(universe::Universe, defect::Defect, size::Int64)
     defect.size = size
     Radius!(defect)
+    ChangeBehaviors!(universe, defect)
+end
+
+function ChangeBehaviors!(universe::Universe, defect::Defect)
     oldProbability = defect.behaviors.probability
-    probability = GetBehaviors(defect)
+    if defect.type == 1
+        probabilities = SiaProbabilities(defect.size)
+    else
+        probabilities = VacProbabilities(defect.size)
+    end
+    defect.behaviors.probabilities = probabilities
+    probability = sum(probabilities)
     i = findfirst(x->x.index===defect.index, universe.defects)
     universe.defectProbabilities[i] = probability
     universe.totalProbability += probability - oldProbability
@@ -393,22 +409,62 @@ function RandomADefect(universe::Universe)
 end
 
 function RandomABehavior(defect::Defect)
-    weights = Weights(defect.behaviors.probabilities)
-    sample(defect.behaviors.displaces, weights)
+    sample(defect.behaviors.types, Weights(defect.behaviors.probabilities))
 end
+
+function Behave!(universe::Universe, defect::Defect, type::Int64)
+    if type == 1
+        MigrateFirstNeighbor!(universe, defect)
+    elseif type == 2
+        MigrateSecondNeighbor!(universe, defect)
+    else
+        Steer!(defect)
+    end
+end
+
+function MigrateFirstNeighbor!(universe::Universe, defect::Defect)
+    if defect.type == 1
+        r = rand()
+        if r <= SIA_DISAPPEAR_PROB
+            delete!(universe, defect)
+            return
+        end
+        sign = sample([1,-1])
+        displace = SIA_DIRECTIONS[defect.directionIndex] * sign
+        newCoord = defect.coord + displace
+        Move!(universe, defect, newCoord)
+    else
+        displace = sample(FIRST_NEIGHBORS)
+        newCoord = defect.coord + displace
+        Move!(universe, defect, newCoord)
+    end
+end
+
+function MigrateSecondNeighbor!(universe::Universe, defect::Defect)
+    displace = sample(SECOND_NEIGHBORS)
+    newCoord = defect.coord + displace
+    Move!(universe, defect, newCoord)
+end
+
+function Steer!(defect::Defect)
+    @assert(defect.type==1, "steering a vacancy!")
+    newDirections = [a for a in Int64[1,2,3,4] if a != defect.directionIndex]
+    newDirection = sample(newDirections)
+    defect.directionIndex = newDirection
+end
+
 
 function IterStep!(universe::Universe)
     universe.nStep += 1
     defect = RandomADefect(universe)
-    displace = RandomABehavior(defect)
-    newCoord = defect.coord + displace
-    Move!(universe, defect, newCoord)
+    type = RandomABehavior(defect)
+    Behave!(univesre, defect, type)
 end
 
 function Run!(universe::Universe)
     InitCells(universe)
     while universe.nStep < 1000000
-        if universe.nStep % 10 == 0
+        if universe.nStep % 1000 == 0
             defect = Defect(rand(0:99,3), rand(1:2), rand(1:4), rand(10:20))
             push!(universe, defect)
         end
@@ -420,16 +476,16 @@ function Run!(universe::Universe)
     end
 end
 
-
-
 Random.seed!(31415926)
 mapSize = [100,100,100]
 cellLength = 20
 universe = Universe(mapSize, cellLength)
 const dumpName = "/mnt/c/Users/XUKE/Desktop/run.dump"
 RefreshFile!(dumpName)
-@time Run!(universe)
+Run!(universe)
+
 #empty
 #using Profile, PProf
 #@profile Run!(universe)
 #pprof(;webport=58599)
+
