@@ -23,7 +23,6 @@ const SECOND_NEIGHBORS = [[2,0,0],
                           [0,0,2], 
                           [0,0,-2]]
 
-const SIA_DISAPPEAR_PROB = 1E-8
 
 
 mutable struct Behaviors
@@ -65,6 +64,16 @@ mutable struct Cell
     end
 end
 
+struct Constants
+    siaRadii::Vector{Float64}
+    vacRadii::Vector{Float64}
+    function Constants()
+        siaRadii = Float64[]
+        vacRadii = Float64[]
+        new(siaRadii, vacRadii)
+    end
+end
+
 mutable struct Universe
     nStep::Int64
     maxIndex::Int64
@@ -75,6 +84,7 @@ mutable struct Universe
     defects::Vector{Defect}
     defectProbabilities::Vector{Float64}
     totalProbability::Float64
+    constants::Constants
     function Universe(mapSize::Vector{Int64}, cellLength::Int64)
         nsCells = floor.(Int64, mapSize / cellLength)
         cells = Array{Cell, 3}(undef, nsCells[1], nsCells[2], nsCells[3])
@@ -88,7 +98,9 @@ mutable struct Universe
         maxIndex = 0
         totalProbability = 0 
         nStep = 0
-        new(nStep, maxIndex, mapSize, cellLength, nsCells, cells, defects, defectProbabilities, totalProbability)
+        constants = Constants()
+        new(nStep, maxIndex, mapSize, cellLength, nsCells, cells, defects, 
+            defectProbabilities, totalProbability, constants)
     end
 end
 
@@ -146,7 +158,7 @@ function PBCCellCoord!(universe::Universe, cellCoord::Vector{Int64})
     end
 end
 
-function InitCells(universe::Universe)
+function InitCells!(universe::Universe)
     for i in 1:universe.nsCells[1]
         for j in 1:universe.nsCells[2]
             for k in 1:universe.nsCells[3]
@@ -333,16 +345,17 @@ function InitBehaviors!(universe::Universe, defect::Defect)
     universe.totalProbability += probability
 end
 
-
 function SiaProbabilities(size::Int64)
-    return [1.,0.001.]
+    return [1.,0.001]
 end
+
 
 function VacProbabilities(size::Int64)
     if size == 1
         return Float64[1.,0.5]
     else
         return Float64[0,0]
+    end
 end
 
 
@@ -379,13 +392,17 @@ function Base.push!(cell::Cell, defect::Defect)
     defect.cellIndex = cell.index
 end
 
-function Radius!(defect::Defect)
-    defect.radius = ((3*defect.size)/(4*pi))^(1/3)
+function Radius!(universe::Universe, defect::Defect)
+    if defect.type == 1
+        defect.radius = universe.constants.siaRadii[defect.size]
+    else
+        defect.radius = universe.constants.vacRadii[defect.size]
+    end
 end
 
 function ChangeSize!(universe::Universe, defect::Defect, size::Int64)
     defect.size = size
-    Radius!(defect)
+    Radius!(universe, defect)
     ChangeBehaviors!(universe, defect)
 end
 
@@ -425,7 +442,7 @@ end
 function MigrateFirstNeighbor!(universe::Universe, defect::Defect)
     if defect.type == 1
         r = rand()
-        if r <= SIA_DISAPPEAR_PROB
+        if r <= SIA_DISAPPEAR_RATE
             delete!(universe, defect)
             return
         end
@@ -462,7 +479,7 @@ function IterStep!(universe::Universe)
 end
 
 function Run!(universe::Universe)
-    InitCells(universe)
+    Init!(universe)
     while universe.nStep < 1000000
         if universe.nStep % 1000 == 0
             defect = Defect(rand(0:99,3), rand(1:2), rand(1:4), rand(10:20))
@@ -476,13 +493,35 @@ function Run!(universe::Universe)
     end
 end
 
+function InitRadius!(universe::Universe)
+    vacRadii = Float64[]
+    for n in 1:200
+        push!(vacRadii, (3/4/pi*2^3/2*n)^(1/3) - (3/4/pi*2^3/2)^(1/3) + 3^(1/3))
+    end
+    siaRadii = Float64[]
+    for n in 1:200
+        push!(siaRadii, (2^2/3^(1/2)/pi*n)^(1/2) - (2^2/3^(1/2)/pi)^(1/2) + 3^(1/3))
+    end
+    universe.constants.vacRadii = vacRadii
+    universe.constants.siaRadii = siaRadii
+end
+
+function Init!(universe::Universe)
+    InitCells!(universe)
+    InitRadius!(universe)
+end
+
+
+
 Random.seed!(31415926)
+const SIA_DISAPPEAR_RATE = 1E-8
 mapSize = [100,100,100]
 cellLength = 20
 universe = Universe(mapSize, cellLength)
 const dumpName = "/mnt/c/Users/XUKE/Desktop/run.dump"
 RefreshFile!(dumpName)
-Run!(universe)
+InitRadius()
+#Run!(universe)
 
 #empty
 #using Profile, PProf
