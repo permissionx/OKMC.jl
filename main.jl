@@ -26,7 +26,7 @@ const SECOND_NEIGHBORS = [[2,0,0],
 
 
 mutable struct Behaviors
-    types::Vector{Float64}  #1 for diffusion, 2 for redirection
+    types::Vector{Int64}  #1 for diffusion, 2 for redirection
     probabilities::Vector{Float64}
     probability::Float64
     function Behaviors()
@@ -64,7 +64,23 @@ mutable struct Cell
     end
 end
 
-struct Constants
+function Base.display(cell::Cell)
+    println("Cell: ", cell.index)
+    println("id type coord directionIndex size radius cellIndex")
+    for defect in cell.defects
+        println("$(defect.index) $(defect.type) $(defect.coord) $(defect.directionIndex) \
+        $(defect.size) $(defect.radius) $(defect.cellIndex)")
+    end
+    println("----------------------")
+end
+
+function Base.display(cells::Array{Cell})
+    for cell in cells
+        display(cell)
+    end
+end
+
+mutable struct Constants
     siaRadii::Vector{Float64}
     vacRadii::Vector{Float64}
     function Constants()
@@ -73,6 +89,8 @@ struct Constants
         new(siaRadii, vacRadii)
     end
 end
+
+
 
 mutable struct Universe
     nStep::Int64
@@ -104,7 +122,6 @@ mutable struct Universe
     end
 end
 
-CellCoord(universe::Universe, coord::Vector{Int64}) = floor.(Int64, coord/universe.cellLength .+ 1)
 
 #Dump uverserse in lammps dump format
 function Dump(universe::Universe, fileName::String, mode::String="a")
@@ -117,7 +134,7 @@ function Dump(universe::Universe, fileName::String, mode::String="a")
     write(file, "0 $(universe.mapSize[1])\n")
     write(file, "0 $(universe.mapSize[2])\n")
     write(file, "0 $(universe.mapSize[3])\n")
-    write(file, "ITEM: ATOMS id type x y z size direction radius\n")
+    write(file, "ITEM: ATOMS id type x y z size d1 d2 d3 radius\n")
     for defect in universe.defects
         if defect.type == 1
             direction = SIA_DIRECTIONS[defect.directionIndex]
@@ -136,8 +153,7 @@ function RefreshFile!(fileName)
     close(file)
 end
 
-
-    
+CellCoord(universe::Universe, coord::Vector{Int64}) = floor.(Int64, coord/universe.cellLength ) .+ 1
 
 function GetCell(universe::Universe, cellCoord::Vector{Int64})
     for i in 1:3
@@ -148,6 +164,7 @@ function GetCell(universe::Universe, cellCoord::Vector{Int64})
     return universe.cells[cellCoord[1], cellCoord[2], cellCoord[3]]
 end
 
+
 function PBCCellCoord!(universe::Universe, cellCoord::Vector{Int64})
     for i in 1:3
         if cellCoord[i] < 1
@@ -157,6 +174,7 @@ function PBCCellCoord!(universe::Universe, cellCoord::Vector{Int64})
         end
     end
 end
+
 
 function InitCells!(universe::Universe)
     for i in 1:universe.nsCells[1]
@@ -178,32 +196,7 @@ function InitCells!(universe::Universe)
     end
 end
 
-function Base.display(cell::Cell)
-    println("Cell: ", cell.index)
-    println("id type coord directionIndex size radius cellIndex")
-    for defect in cell.defects
-        println("$(defect.index) $(defect.type) $(defect.coord) $(defect.directionIndex) \
-        $(defect.size) $(defect.radius) $(defect.cellIndex)")
-    end
-    println("----------------------")
-end
 
-function Base.display(cells::Array{Cell})
-    for cell in cells
-        display(cell)
-    end
-end
-
-
-
-function CrossCells!(universe::Universe, defect::Defect)
-    cellCoord = CellCoord(universe, defect.coord)
-    cell = GetCell(universe, cellCoord)
-    if cell.index != defect.cellIndex
-        delete!(universe.cells[defect.cellIndex], defect)
-        push!(cell, defect)
-    end
-end
 
 function Delta(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int64}) 
     # vactor points from 1 to 2 
@@ -238,31 +231,6 @@ function FindNeighbors(universe::Universe, defect::Defect)
     neighbors
 end
 
-function CoordInBCC(coord::Vector{Float64})
-    # To do: should shift to the nearest lattice point, but does not matter seriously
-    newCoord = Vector{Int64}(undef, 3)
-    newCoord[3] = Int64(round(coord[3]))
-    if iseven(newCoord[3])
-        for i in 1:2
-            x = floor(coord[i])
-            if iseven(x)
-                newCoord[i] = Int64(x)
-            else
-                newCoord[i] = Int64(x+1)
-            end
-        end
-    else
-        for i in 1:2
-            x = floor(coord[i])
-            if isodd(x)
-                newCoord[i] = Int64(x)
-            else
-                newCoord[i] = Int64(x+1)
-            end
-        end
-    end
-    newCoord
-end
 
 function PBCCoord!(universe::Universe, coord::Vector{Int64})
     for i in 1:3
@@ -281,7 +249,6 @@ function Reaction!(universe::Universe, defect1::Defect, defect2::Defect)
     if largeDefect.type == smallDefect.type
         #combine
         center = (largeDefect.coord*largeDefect.size + smallDefect.coord*smallDefect.size) / (largeDefect.size + smallDefect.size)
-        #newCoord = CoordInBCC(center)
         newCoord = round.(Int64, center)
         ChangeSize!(universe, largeDefect, largeDefect.size + smallDefect.size)
         delete!(universe, smallDefect)
@@ -311,19 +278,42 @@ function Reaction!(universe::Universe, defect1::Defect, defect2::Defect)
 end
 
 
-function Move!(universe::Universe, defect::Defect, coord::Vector{Int64})
-    PBCCoord!(universe, coord)
-    defect.coord = coord
-    CrossCells!(universe, defect)
-    Changed!(universe, defect)
-end
-
-
 function Changed!(universe::Universe, defect::Defect)
     neighbors = FindNeighbors(universe, defect)
     if length(neighbors) > 0 
         neighbor = sample(neighbors)
         Reaction!(universe, defect, neighbor)
+    end
+end
+
+
+function SiaProbabilities(size::Int64)
+    # 1 for migration, 2 for sterring
+    return [1.,0.001]
+end
+
+
+function VacProbabilities(size::Int64)
+    # 1 for migration, 2 for emittion
+    if size == 1
+        return Float64[1.,0.0]
+    else
+        return Float64[0,0.0000]
+    end
+end
+
+
+function ChangeSize!(universe::Universe, defect::Defect, size::Int64)
+    defect.size = size
+    Radius!(universe, defect)
+    ChangeBehaviors!(universe, defect)
+end
+
+function Radius!(universe::Universe, defect::Defect)
+    if defect.type == 1
+        defect.radius = universe.constants.siaRadii[defect.size]
+    else
+        defect.radius = universe.constants.vacRadii[defect.size]
     end
 end
 
@@ -345,17 +335,38 @@ function InitBehaviors!(universe::Universe, defect::Defect)
     universe.totalProbability += probability
 end
 
-function SiaProbabilities(size::Int64)
-    return [1.,0.001]
+function ChangeBehaviors!(universe::Universe, defect::Defect)
+    oldProbability = defect.behaviors.probability
+    if defect.type == 1
+        probabilities = SiaProbabilities(defect.size)
+    else
+        probabilities = VacProbabilities(defect.size)
+    end
+    defect.behaviors.probabilities = probabilities
+    probability = sum(probabilities)
+    i = findfirst(x->x.index===defect.index, universe.defects)
+    universe.defectProbabilities[i] = probability
+    universe.totalProbability += probability - oldProbability
 end
 
 
-function VacProbabilities(size::Int64)
-    if size == 1
-        return Float64[1.,0.5]
-    else
-        return Float64[0,0]
-    end
+
+function Base.push!(universe::Universe, defect::Defect)
+    cellCoord = CellCoord(universe, defect.coord)
+    cell = GetCell(universe, cellCoord)
+    push!(cell, defect)
+    universe.maxIndex += 1
+    defect.index = universe.maxIndex
+    Radius!(universe, defect)
+    InitBehaviors!(universe, defect)
+    push!(universe.defects, defect)
+    Changed!(universe, defect)
+end
+
+
+function Base.push!(cell::Cell, defect::Defect)
+    push!(cell.defects, defect)
+    defect.cellIndex = cell.index
 end
 
 
@@ -373,53 +384,24 @@ function Base.delete!(cell::Cell, defect::Defect)
     deleteat!(cell.defects, findfirst(x->x.index==defect.index, cell.defects))
 end
 
-
-function Base.push!(universe::Universe, defect::Defect)
-    cellCoord = CellCoord(universe, defect.coord)
-    cell = GetCell(universe, cellCoord)
-    push!(cell, defect)
-    universe.maxIndex += 1
-    defect.index = universe.maxIndex
-    Radius!(defect)
-    InitBehaviors!(universe, defect)
-    push!(universe.defects, defect)
+function Move!(universe::Universe, defect::Defect, coord::Vector{Int64})
+    PBCCoord!(universe, coord)
+    defect.coord = coord
+    CrossCells!(universe, defect)
     Changed!(universe, defect)
 end
 
-
-function Base.push!(cell::Cell, defect::Defect)
-    push!(cell.defects, defect)
-    defect.cellIndex = cell.index
-end
-
-function Radius!(universe::Universe, defect::Defect)
-    if defect.type == 1
-        defect.radius = universe.constants.siaRadii[defect.size]
-    else
-        defect.radius = universe.constants.vacRadii[defect.size]
+function CrossCells!(universe::Universe, defect::Defect)
+    cellCoord = CellCoord(universe, defect.coord)
+    cell = GetCell(universe, cellCoord)
+    if cell.index != defect.cellIndex
+        delete!(universe.cells[defect.cellIndex], defect)
+        push!(cell, defect)
     end
 end
 
-function ChangeSize!(universe::Universe, defect::Defect, size::Int64)
-    defect.size = size
-    Radius!(universe, defect)
-    ChangeBehaviors!(universe, defect)
-end
 
-function ChangeBehaviors!(universe::Universe, defect::Defect)
-    oldProbability = defect.behaviors.probability
-    if defect.type == 1
-        probabilities = SiaProbabilities(defect.size)
-    else
-        probabilities = VacProbabilities(defect.size)
-    end
-    defect.behaviors.probabilities = probabilities
-    probability = sum(probabilities)
-    i = findfirst(x->x.index===defect.index, universe.defects)
-    universe.defectProbabilities[i] = probability
-    universe.totalProbability += probability - oldProbability
-end
-
+#KMC
 function RandomADefect(universe::Universe)
     weights = Weights(universe.defectProbabilities)
     sample(universe.defects, weights)
@@ -464,10 +446,11 @@ function MigrateSecondNeighbor!(universe::Universe, defect::Defect)
 end
 
 function Emit!(universe::Universe, defect::Defect)
-    r = defect.radius+1
-    coord = RandomAPointOnShpereSurface(r)
+    r = defect.radius+2
+    coord = RandomAPointOnShpereSurface(r) + defect.coord
+    PBCCoord!(universe, coord)
     vac = Defect(coord, 2, 1, 1)
-    ChangeSize!(univeres, defect, defect.size-1)
+    ChangeSize!(universe, defect, defect.size-1)
     push!(universe, vac)    
 end
 
@@ -476,9 +459,11 @@ function RandomAPointOnShpereSurface(r::Float64)
     # http://mathworld.wolfram.com/SpherePointPicking.html
     u = rand()*2-1
     theta = 2pi*rand()
-    x = sqrt(1-u*u) * cos(theta)
-    y = sqrt(1-u*u) * sin(theta)
-    return round.(Int64,[x,y,u])
+    r2d = sqrt(1-u*u)
+    x = r2d * cos(theta) * r
+    y = r2d * sin(theta) * r
+    z = u*r
+    return round.(Int64,[x,y,z])
 end
 
 
@@ -494,23 +479,9 @@ function IterStep!(universe::Universe)
     universe.nStep += 1
     defect = RandomADefect(universe)
     type = RandomABehavior(defect)
-    Behave!(univesre, defect, type)
+    Behave!(universe, defect, type)
 end
 
-function Run!(universe::Universe)
-    Init!(universe)
-    while universe.nStep < 1000000
-        if universe.nStep % 1000 == 0
-            defect = Defect(rand(0:99,3), rand(1:2), rand(1:4), rand(10:20))
-            push!(universe, defect)
-        end
-        IterStep!(universe)
-        if universe.nStep % 10000 == 0
-            println(universe.nStep)
-            Dump(universe, dumpName)
-        end
-    end
-end
 
 function InitRadius!(universe::Universe)
     vacRadii = Float64[]
@@ -531,16 +502,40 @@ function Init!(universe::Universe)
 end
 
 
+function Run!(universe::Universe)
+    Init!(universe)
+    while universe.nStep < 10000
+        if universe.nStep % 100 == 0
+            defect = Defect(rand(0:99,3), rand(1:2), rand(1:4), rand(1:10))
+            push!(universe, defect)
+        end
+        if universe.nStep % 100 == 0
+            println("Step:", universe.nStep)
+            Dump(universe, dumpName)
+        end
+        IterStep!(universe)
+    end
+end
+
+function Test!(universe::Universe)
+    Init!(universe)
+    defect = Defect(rand(0:99,3), 2, rand(1:4), rand(10:20))
+    push!(universe, defect)
+    Dump(universe, dumpName)
+end
+
 Random.seed!(31415926)
 const SIA_DISAPPEAR_RATE = 1E-8
 mapSize = [100,100,100]
 cellLength = 20
 universe = Universe(mapSize, cellLength)
-const dumpName = "/mnt/c/Users/XUKE/Desktop/run.dump"
+const dumpName = "/mnt/c/Users/XUKE/Desktop/test.dump"
 RefreshFile!(dumpName)
-InitRadius()
+#InitRadius!(universe)
 #Run!(universe)
 
+#Init!(universe)
+Run!(universe)
 #empty
 #using Profile, PProf
 #@profile Run!(universe)
