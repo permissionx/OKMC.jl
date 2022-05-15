@@ -1,152 +1,5 @@
-using StatsBase
-using Random
-using Distributions
-
-const SIA_DIRECTIONS = ([[1,1,1], 
-                         [1,1,-1], 
-                         [1,-1,1], 
-                         [1,-1,-1]])
-
-const FIRST_NEIGHBORS = [[1,1,1], 
-                         [1,1,-1], 
-                         [1,-1,1], 
-                         [1,-1,-1],
-                         [-1,1,1], 
-                         [-1,1,-1], 
-                         [-1,-1,1], 
-                         [-1,-1,-1]]
-
-const SECOND_NEIGHBORS = [[2,0,0], 
-                          [-2,0,0], 
-                          [0,2,0], 
-                          [0,-2,0], 
-                          [0,0,2], 
-                          [0,0,-2]]
-
-
-
-mutable struct Behaviors
-    types::Vector{Int64}  #1 for diffusion, 2 for redirection
-    probabilities::Vector{Float64}
-    probability::Float64
-    function Behaviors()
-        types = Int64[]
-        probabilities = Float64[]
-        probability = 0.0
-        new(types, probabilities, probability)
-    end
-end
-
-mutable struct Defect
-    index::Int64
-    type::Int64
-    coord::Vector{Int64}
-    directionIndex::Int64
-    size::Int64
-    radius::Float64
-    cellIndex::Int64
-    behaviors::Behaviors
-    function Defect(coord::Vector{Int64}, type::Int64, directionIndex::Int64, size::Int64)
-        index = 0 
-        cellIndex = 0
-        behaviors = Behaviors()
-        new(index, type, coord, directionIndex, size, 0., cellIndex, behaviors)
-    end
-end
-
-
-mutable struct Cell
-    index::Int64
-    neighbors::Vector{Cell}
-    defects::Vector{Defect}
-    function Cell(index::Int64)
-        new(index, Cell[], Defect[])
-    end
-end
-
-function Base.display(cell::Cell)
-    println("Cell: ", cell.index)
-    println("id type coord directionIndex size radius cellIndex")
-    for defect in cell.defects
-        println("$(defect.index) $(defect.type) $(defect.coord) $(defect.directionIndex) \
-        $(defect.size) $(defect.radius) $(defect.cellIndex)")
-    end
-    println("----------------------")
-end
-
-function Base.display(cells::Array{Cell})
-    for cell in cells
-        display(cell)
-    end
-end
-
-mutable struct Constants
-    siaRadii::Vector{Float64}
-    vacRadii::Vector{Float64}
-    function Constants()
-        siaRadii = Float64[]
-        vacRadii = Float64[]
-        new(siaRadii, vacRadii)
-    end
-end
-
-
-
-mutable struct Universe
-    nStep::Int64
-    maxIndex::Int64
-    mapSize::Vector{Int64}
-    cellLength::Int64
-    nsCells::Vector{Int64} #numbers of cells in 3 dimensions
-    cells::Array{Cell, 3}
-    defects::Vector{Defect}
-    defectProbabilities::Vector{Float64}
-    totalProbability::Float64
-    constants::Constants
-    function Universe(mapSize::Vector{Int64}, cellLength::Int64)
-        nsCells = floor.(Int64, mapSize / cellLength)
-        cells = Array{Cell, 3}(undef, nsCells[1], nsCells[2], nsCells[3])
-        cellIndex = 0
-        for i in 1:length(cells)
-            cellIndex += 1
-            cells[i] = Cell(cellIndex)
-        end
-        defects = Defect[]
-        defectProbabilities = Float64[]
-        maxIndex = 0
-        totalProbability = 0 
-        nStep = 0
-        constants = Constants()
-        new(nStep, maxIndex, mapSize, cellLength, nsCells, cells, defects, 
-            defectProbabilities, totalProbability, constants)
-    end
-end
-
-
-#Dump uverserse in lammps dump format
-function Dump(universe::Universe, fileName::String, mode::String="a")
-    file = open(fileName, mode)
-    write(file, "ITEM: TIMESTEP\n")
-    write(file, "$(universe.nStep)\n")
-    write(file, "ITEM: NUMBER OF ATOMS\n")
-    write(file, "$(length(universe.defects))\n")
-    write(file, "ITEM: BOX BOUNDS pp pp pp\n")
-    write(file, "0 $(universe.mapSize[1])\n")
-    write(file, "0 $(universe.mapSize[2])\n")
-    write(file, "0 $(universe.mapSize[3])\n")
-    write(file, "ITEM: ATOMS id type x y z size d1 d2 d3 radius\n")
-    for defect in universe.defects
-        if defect.type == 1
-            direction = SIA_DIRECTIONS[defect.directionIndex]
-        else
-            direction = [0,0,0]
-        end
-        write(file, 
-        "$(defect.index) $(defect.type) $(defect.coord[1]) $(defect.coord[2]) $(defect.coord[3]) \
-        $(defect.size) $(direction[1]) $(direction[2]) $(direction[3]) $(defect.radius)\n")
-    end
-    close(file)
-end
+include("head.jl")
+include("output.jl")
 
 function RefreshFile!(fileName)
     file = open(fileName, "w")
@@ -485,11 +338,11 @@ end
 
 function InitRadius!(universe::Universe)
     vacRadii = Float64[]
-    for n in 1:200
+    for n in 1:MAX_DEFECT_SIZE
         push!(vacRadii, (3/4/pi*2^3/2*n)^(1/3) - (3/4/pi*2^3/2)^(1/3) + 3^(1/3))
     end
     siaRadii = Float64[]
-    for n in 1:200
+    for n in 1:MAX_DEFECT_SIZE
         push!(siaRadii, (2^2/3^(1/2)/pi*n)^(1/2) - (2^2/3^(1/2)/pi)^(1/2) + 3^(1/3))
     end
     universe.constants.vacRadii = vacRadii
@@ -499,22 +352,11 @@ end
 function Init!(universe::Universe)
     InitCells!(universe)
     InitRadius!(universe)
+    run(`tput sc`)
 end
 
-
-function Run!(universe::Universe)
-    Init!(universe)
-    while universe.nStep < 10000
-        if universe.nStep % 100 == 0
-            defect = Defect(rand(0:99,3), rand(1:2), rand(1:4), rand(1:10))
-            push!(universe, defect)
-        end
-        if universe.nStep % 100 == 0
-            println("Step:", universe.nStep)
-            Dump(universe, dumpName)
-        end
-        IterStep!(universe)
-    end
+function End(universe::Universe)
+    run(`tput sc`)
 end
 
 function Test!(universe::Universe)
@@ -524,12 +366,41 @@ function Test!(universe::Universe)
     Dump(universe, dumpName)
 end
 
+macro do_every(n::Int64, f::Expr)
+    return quote 
+        if universe.nStep%$n == 0
+            eval($f)
+        end
+    end
+end
+
+
+function Run!(universe::Universe)
+    Init!(universe)
+    while universe.nStep <= 100000000
+        @do_every 1000 quote
+            defect = Defect(rand(0:199,3), rand(1:2), rand(1:4), rand(1:10))
+            push!(universe, defect)
+        end
+        #exit()
+        IterStep!(universe)
+        @do_every 1000000 quote
+            print(universe)
+            Dump(universe, dumpName)
+        end
+        @do_every 100000 RecordSV!(universe)
+    end
+end
+
+
 Random.seed!(31415926)
-const SIA_DISAPPEAR_RATE = 1E-8
-mapSize = [100,100,100]
+const SIA_DISAPPEAR_RATE = 1E-5
+const MAX_DEFECT_SIZE = 2000
+const OUTPUT_HEIGHTS = 40
+mapSize = [200,200,200]
 cellLength = 20
 universe = Universe(mapSize, cellLength)
-const dumpName = "/mnt/c/Users/XUKE/Desktop/test.dump"
+const dumpName = "/mnt/c/Users/XUKE/Desktop/run.dump"
 RefreshFile!(dumpName)
 #InitRadius!(universe)
 #Run!(universe)
@@ -540,4 +411,12 @@ Run!(universe)
 #using Profile, PProf
 #@profile Run!(universe)
 #pprof(;webport=58599)
+
+
+# todo: 
+# fix boundary cells ❓
+# realistic probability ❓
+# beatifify screen output ✔️
+# outpot dataframe for python plot ❓
+
 
