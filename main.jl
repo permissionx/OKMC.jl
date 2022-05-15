@@ -431,15 +431,15 @@ end
 
 function Behave!(universe::Universe, defect::Defect, type::Int64)
     if type == 1
-        MigrateFirstNeighbor!(universe, defect)
+        Migrate!(universe, defect)
     elseif type == 2
-        MigrateSecondNeighbor!(universe, defect)
+        Emit!(universe, defect)
     else
         Steer!(defect)
     end
 end
 
-function MigrateFirstNeighbor!(universe::Universe, defect::Defect)
+function Migrate!(universe::Universe, defect::Defect)
     if defect.type == 1
         r = rand()
         if r <= SIA_DISAPPEAR_RATE
@@ -462,6 +462,25 @@ function MigrateSecondNeighbor!(universe::Universe, defect::Defect)
     newCoord = defect.coord + displace
     Move!(universe, defect, newCoord)
 end
+
+function Emit!(universe::Universe, defect::Defect)
+    r = defect.radius+1
+    coord = RandomAPointOnShpereSurface(r)
+    vac = Defect(coord, 2, 1, 1)
+    ChangeSize!(univeres, defect, defect.size-1)
+    push!(universe, vac)    
+end
+
+function RandomAPointOnShpereSurface(r::Float64)
+    # pick a random point on a sphere surface uniformly
+    # http://mathworld.wolfram.com/SpherePointPicking.html
+    u = rand()*2-1
+    theta = 2pi*rand()
+    x = sqrt(1-u*u) * cos(theta)
+    y = sqrt(1-u*u) * sin(theta)
+    return round.(Int64,[x,y,u])
+end
+
 
 function Steer!(defect::Defect)
     @assert(defect.type==1, "steering a vacancy!")
@@ -510,7 +529,6 @@ function Init!(universe::Universe)
     InitCells!(universe)
     InitRadius!(universe)
 end
-
 
 
 Random.seed!(31415926)
