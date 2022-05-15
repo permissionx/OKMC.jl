@@ -91,7 +91,8 @@ function Base.print(universe::Universe)
     println(universe.nStep)
     print("👾 ")
     print(:red, "Defect number ")
-    println(length(universe.defects))
+    println("$(length(universe.defects)) \
+               (including $(universe.history.nsSia[end]) SIAs & $(universe.history.nsVac[end]) Vacancies)")
     print("📊 ")
     print(:green, "Present distributions\n")
     @print_distribution radius

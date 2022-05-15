@@ -395,7 +395,7 @@ end
 
 Random.seed!(31415926)
 const SIA_DISAPPEAR_RATE = 1E-5
-const MAX_DEFECT_SIZE = 2000
+const MAX_DEFECT_SIZE = 5000
 const OUTPUT_HEIGHTS = 40
 mapSize = [200,200,200]
 cellLength = 20
