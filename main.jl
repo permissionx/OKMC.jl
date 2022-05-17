@@ -142,14 +142,14 @@ end
 
 function SiaProbabilities(size::Int64)
     # 1 for migration, 2 for sterring
-    return [1.,0.001]
+    return [1.,0.0]
 end
 
 
 function VacProbabilities(size::Int64)
     # 1 for migration, 2 for emittion
     if size == 1
-        return Float64[1.,0.0]
+        return Float64[0.5,0.0]
     else
         return Float64[0,0.0000]
     end
@@ -375,32 +375,47 @@ macro do_every(n::Int64, f::Expr)
 end
 
 
+function Run_small!(universe::Universe)
+    Init!(universe)
+    defect1 = Defect([100,100,100], 2, rand(1:4), 10)
+    push!(universe, defect1)
+    
+    defect2 = Defect([100,100,120], 2, rand(1:4), 10)
+    push!(universe, defect2)
+    
+    while length(universe.defects) > 1
+        Move!(universe, defect2, defect2.coord - [0,0,1])
+        Dump(universe, dumpName)
+    end
+    Dump(universe, dumpName)
+end
+
 function Run!(universe::Universe)
     Init!(universe)
-    while universe.nStep <= 100000000
-        @do_every 1000 quote
-            defect = Defect(rand(0:199,3), rand(1:2), rand(1:4), rand(1:10))
+    while universe.nStep <= 1_000_000_000_000
+        @do_every 100_000 quote
+            defect = Defect(rand(0:199,3), rand(1:2), rand(1:4), rand(1:1))
             push!(universe, defect)
         end
         #exit()
         IterStep!(universe)
-        @do_every 1000000 quote
+        @do_every 10_000_000 RecordSV!(universe)
+        @do_every 100_000_000 quote
             print(universe)
             Dump(universe, dumpName)
         end
-        @do_every 100000 RecordSV!(universe)
     end
 end
 
 
 Random.seed!(31415926)
-const SIA_DISAPPEAR_RATE = 1E-5
-const MAX_DEFECT_SIZE = 5000
+const SIA_DISAPPEAR_RATE = 1E-7
+const MAX_DEFECT_SIZE = 10000
 const OUTPUT_HEIGHTS = 40
 mapSize = [200,200,200]
 cellLength = 20
 universe = Universe(mapSize, cellLength)
-const dumpName = "/mnt/c/Users/XUKE/Desktop/run.dump"
+const dumpName = "./run/run.dump"
 RefreshFile!(dumpName)
 #InitRadius!(universe)
 #Run!(universe)

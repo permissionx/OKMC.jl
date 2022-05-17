@@ -1,3 +1,4 @@
 *.gz
 *.pb.gz
+*.dump
 test/

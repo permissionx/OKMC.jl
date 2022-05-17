@@ -63,7 +63,7 @@ end
 
 function PrintHistory(xs::Vector{Int64}, yses::Vector{Vector{T}}, names::Vector{String}; 
                       yscale=:identity) where T<:Real
-    plot = lineplot(xs, yses[1], yscale=yscale, name = names[1])
+    plot = lineplot(xs, yses[1], yscale=yscale, name = names[1], ylim = (0,maximum([maximum(yses[1]),maximum(yses[2])])+10))
     for i in 2:length(yses)
         lineplot!(plot, xs, yses[i], name=names[i])
     end
@@ -94,7 +94,7 @@ function Base.print(universe::Universe)
     println("$(length(universe.defects)) \
                (including $(universe.history.nsSia[end]) SIAs & $(universe.history.nsVac[end]) Vacancies)")
     print("📊 ")
-    print(:green, "Present distributions\n")
+    print(:green, "Current distributions\n")
     @print_distribution radius
     print("📅 ")
     print(:yellow, "Attributs\n")
