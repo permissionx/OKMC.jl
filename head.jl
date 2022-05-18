@@ -68,10 +68,13 @@ end
 
 mutable struct Cell
     index::Int64
-    neighbors::Vector{Cell}
+    normalNeighbors::Vector{Cell}
+    crossNeighbors::Vector{Cell}
+    crossSigns::Vector{Vector{Int64}}
     defects::Vector{Defect}
     function Cell(index::Int64)
-        new(index, Cell[], Defect[])
+        crossSigns = Vector{Vector{Int64}}()
+        new(index, Cell[], Cell[], crossSigns, Defect[])
     end
 end
 

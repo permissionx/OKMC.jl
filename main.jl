@@ -17,17 +17,21 @@ function GetCell(universe::Universe, cellCoord::Vector{Int64})
     return universe.cells[cellCoord[1], cellCoord[2], cellCoord[3]]
 end
 
-
 function PBCCellCoord!(universe::Universe, cellCoord::Vector{Int64})
+    crossSign = Int64[]
     for i in 1:3
         if cellCoord[i] < 1
             cellCoord[i] = universe.nsCells[i] + cellCoord[i]
+            push!(crossSign, -1)
         elseif cellCoord[i] > universe.nsCells[i]
             cellCoord[i] = cellCoord[i] - universe.nsCells[i]
+            push!(crossSign, 1)
+        else
+            push!(crossSign, 0)
         end
     end
+    return crossSign
 end
-
 
 function InitCells!(universe::Universe)
     for i in 1:universe.nsCells[1]
@@ -38,9 +42,14 @@ function InitCells!(universe::Universe)
                     for dj in -1:1
                         for dk in -1:1
                             neighborCellCoord = [i, j, k] + [di, dj, dk]
-                            PBCCellCoord!(universe, neighborCellCoord)
+                            crossSign = PBCCellCoord!(universe, neighborCellCoord)
                             neighborCell = GetCell(universe, neighborCellCoord)
-                            push!(cell.neighbors, neighborCell)
+                            if crossSign == [0,0,0]
+                                push!(cell.normalNeighbors, neighborCell)
+                            else
+                                push!(cell.crossNeighbors, neighborCell)
+                                push!(cell.crossSigns, crossSign)
+                            end
                         end
                     end
                 end
@@ -49,17 +58,15 @@ function InitCells!(universe::Universe)
     end
 end
 
-
-
 function Delta(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int64}) 
     # vactor points from 1 to 2 
-    delta = Vector{Int64}(coord2 - coord1)
+    (coord2 - coord1)
+end
+
+function Delta(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int64}, crossSign::Vector{Int64})
+    delta = coord2 - coord1
     for i in 1:3
-        if delta[i] < -universe.mapSize[i] / 2
-            delta[i] += universe.mapSize[i]
-        elseif delta[i] > universe.mapSize[i] / 2
-            delta[i] -= universe.mapSize[i]
-        end
+        delta[i] += crossSign[i] * universe.mapSize[i]
     end
     delta
 end
@@ -69,21 +76,33 @@ function Distance(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int6
     sqrt(sum(delta .* delta))
 end
 
+function Distance(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int64}, crossSign::Vector{Int64})
+    delta = Delta(universe, coord1, coord2, crossSign)
+    sqrt(sum(delta .* delta))
+end
+
 function FindNeighbors(universe::Universe, defect::Defect)
     cell = universe.cells[defect.cellIndex]
     neighbors = Defect[]
-    for cell in cell.neighbors
+    for cell in cell.normlNeighbors
         for neighbor in cell.defects
             if neighbor.index != defect.index
-                if Distance(universe, neighbor.coord, defect.coord) <= neighbor.radius+defect.radius
+                if Distance(universe, defect.coord, neighbor.coord) <= neighbor.radius+defect.radius
                     push!(neighbors, neighbor)
                 end
             end
         end
     end
-    neighbors
+    for (cell, crossSign) in zip(cell.crossNeighbors, cell.crossSigns)
+        for neighbor in cell.defects
+            if neighbor.index != defect.index
+                if Distance(universe, defect.coord, neighbor.coord, crossSign) <= neighbor.radius+defect.radius
+                    push!(neighbors, neighbor)
+                end
+            end
+        end
+    end
 end
-
 
 function PBCCoord!(universe::Universe, coord::Vector{Int64})
     for i in 1:3
@@ -94,7 +113,6 @@ function PBCCoord!(universe::Universe, coord::Vector{Int64})
         end
     end
 end
-
 
 function Reaction!(universe::Universe, defect1::Defect, defect2::Defect)
     largeDefect = (defect1.size > defect2.size) ? defect1 : defect2
@@ -419,9 +437,9 @@ const dumpName = "./run/run.dump"
 RefreshFile!(dumpName)
 #InitRadius!(universe)
 #Run!(universe)
-
+Init!(universe)
 #Init!(universe)
-Run!(universe)
+#Run!(universe)
 #empty
 #using Profile, PProf
 #@profile Run!(universe)
@@ -432,6 +450,6 @@ Run!(universe)
 # fix boundary cells ❓
 # realistic probability ❓
 # beatifify screen output ✔️
-# outpot dataframe for python plot ❓
+# outpot dataframe for python plot ✔️
 
 
