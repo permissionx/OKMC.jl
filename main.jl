@@ -93,15 +93,18 @@ function FindNeighbors(universe::Universe, defect::Defect)
             end
         end
     end
+    crossSigns = [[0,0,0] for _ in 1:length(neighbors)]
     for (cell, crossSign) in zip(cell.crossNeighbors, cell.crossSigns)
         for neighbor in cell.defects
             if neighbor.index != defect.index
                 if Distance(universe, defect.coord, neighbor.coord, crossSign) <= neighbor.radius+defect.radius
                     push!(neighbors, neighbor)
+                    push!(crossSigns, crossSign)
                 end
             end
         end
     end
+    neighbors, crossSigns
 end
 
 function PBCCoord!(universe::Universe, coord::Vector{Int64})
@@ -114,12 +117,21 @@ function PBCCoord!(universe::Universe, coord::Vector{Int64})
     end
 end
 
-function Reaction!(universe::Universe, defect1::Defect, defect2::Defect)
-    largeDefect = (defect1.size > defect2.size) ? defect1 : defect2
-    smallDefect = (defect1.size <= defect2.size) ? defect1 : defect2
+function Reaction!(universe::Universe, defect1::Defect, defect2::Defect, crossSign::Vector{Int64})
+    if defect1.size > defect2.size
+        largeDefect = defect1
+        largeDefectCoord = defect1.coord
+        smallDefect = defect2
+        smallDefectCoord = defect2.coord + crossSign.*universe.mapSize
+    else
+        largeDefect = defect2
+        largeDefectCoord = defect2.coord+ crossSign.*universe.mapSize
+        smallDefect = defect1
+        smallDefectCoord = defect1.coord 
+    end
     if largeDefect.type == smallDefect.type
         #combine
-        center = (largeDefect.coord*largeDefect.size + smallDefect.coord*smallDefect.size) / (largeDefect.size + smallDefect.size)
+        center = (largeDefectCoord*largeDefect.size + smallDefectCoord*smallDefect.size) / (largeDefect.size + smallDefect.size)
         newCoord = round.(Int64, center)
         ChangeSize!(universe, largeDefect, largeDefect.size + smallDefect.size)
         delete!(universe, smallDefect)
@@ -129,11 +141,11 @@ function Reaction!(universe::Universe, defect1::Defect, defect2::Defect)
             delete!(universe, smallDefect)
             delete!(universe, largeDefect)
         else
-        #swallow
+        #swallow: need to test on the boundary
             radius = largeDefect.radius 
             ChangeSize!(universe, largeDefect, largeDefect.size - smallDefect.size)
             moveLength = radius - largeDefect.radius
-            delta = Delta(universe, largeDefect.coord, smallDefect.coord)
+            delta = Delta(universe, largeDefectCoord, smallDefectCoord)
             distance = sqrt(sum(delta .* delta))
             delete!(universe, smallDefect)
             if distance != 0
@@ -150,10 +162,12 @@ end
 
 
 function Changed!(universe::Universe, defect::Defect)
-    neighbors = FindNeighbors(universe, defect)
+    neighbors, crossSigns = FindNeighbors(universe, defect)
     if length(neighbors) > 0 
-        neighbor = sample(neighbors)
-        Reaction!(universe, defect, neighbor)
+        i = rand(1:length(neighbors))
+        neighbor = neighbors[i]
+        crossSign = crossSigns[i]
+        Reaction!(universe, defect, neighbor, crossSign)
     end
 end
 
@@ -395,8 +409,8 @@ end
 
 function Run_small!(universe::Universe)
     Init!(universe)
-    while universe.nStep <= 1_000
-        @do_every 1 quote
+    while universe.nStep <= 1_000_000
+        @do_every 100 quote
             defect = Defect(rand(0:199,3), rand(1:2), rand(1:4), rand(1:1))
             push!(universe, defect)
         end
@@ -438,7 +452,7 @@ cellLength = 20
 universe = Universe(mapSize, cellLength)
 const dumpName = "./run/run.dump"
 RefreshFile!(dumpName)
-Run_small!(universe)
+@time Run_small!(universe)
 
 #InitRadius!(universe)
 #Run!(universe)
