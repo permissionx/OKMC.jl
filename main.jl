@@ -128,7 +128,7 @@ function Reaction!(universe::Universe, defect1::Defect, defect2::Defect, crossSi
     end
     if largeDefect.type == smallDefect.type
         #combine
-        center = (largeDefectCoord*largeDefect.size + smallDefectCoord*smallDefect.size) / (largeDefect.size + smallDefect.size)
+        newCoord = (largeDefectCoord*largeDefect.size + smallDefectCoord*smallDefect.size) / (largeDefect.size + smallDefect.size)
         ChangeSize!(universe, largeDefect, largeDefect.size + smallDefect.size)
         delete!(universe, smallDefect)
         Move!(universe, largeDefect, newCoord)
@@ -145,9 +145,9 @@ function Reaction!(universe::Universe, defect1::Defect, defect2::Defect, crossSi
             distance = sqrt(sum(delta .* delta))
             delete!(universe, smallDefect)
             if distance != 0
-                newCoordFloat = Vector{Float64}(undef,3)
+                newCoord = Vector{Float64}(undef,3)
                 for i in 1:3
-                    newCoordFloat[i] = largeDefect.coord[i] - moveLength * delta[i] / distance
+                    newCoord[i] = largeDefect.coord[i] - moveLength * delta[i] / distance
                 end
                 Move!(universe, largeDefect, newCoord)
             end
@@ -404,12 +404,12 @@ end
 
 function Run_small!(universe::Universe)
     Init!(universe)
-    defect1 = Defect([100,100,110], 2, rand(1:4), 1)
+    defect1 = Defect([110.,110.,110.], 2, rand(1:4), 1)
     push!(universe, defect1)
-    defect2 = Defect([100,100,100], 1, rand(1:4), 5)
+    defect2 = Defect([100.,100.,100.], 1, rand(1:4), 5)
     push!(universe, defect2)
     while universe.nStep <= 100
-        Move!(universe, defect1, defect1.coord - [0,0,1])
+        Move!(universe, defect1, defect1.coord - [1,1,1])
         universe.nStep += 1
         Dump(universe, dumpName)
         if length(universe.defects) < 2
