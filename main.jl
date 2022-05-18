@@ -84,7 +84,7 @@ end
 function FindNeighbors(universe::Universe, defect::Defect)
     cell = universe.cells[defect.cellIndex]
     neighbors = Defect[]
-    for cell in cell.normlNeighbors
+    for cell in cell.normalNeighbors
         for neighbor in cell.defects
             if neighbor.index != defect.index
                 if Distance(universe, defect.coord, neighbor.coord) <= neighbor.radius+defect.radius
@@ -395,17 +395,19 @@ end
 
 function Run_small!(universe::Universe)
     Init!(universe)
-    defect1 = Defect([100,100,100], 2, rand(1:4), 10)
-    push!(universe, defect1)
-    
-    defect2 = Defect([100,100,120], 2, rand(1:4), 10)
-    push!(universe, defect2)
-    
-    while length(universe.defects) > 1
-        Move!(universe, defect2, defect2.coord - [0,0,1])
-        Dump(universe, dumpName)
+    while universe.nStep <= 1_000
+        @do_every 1 quote
+            defect = Defect(rand(0:199,3), rand(1:2), rand(1:4), rand(1:1))
+            push!(universe, defect)
+        end
+        #exit()
+        IterStep!(universe)
+        #@do_every 1 RecordSV!(universe)
+        #@do_every 1 quote
+        #    print(universe)
+        #    Dump(universe, dumpName)
+        #end
     end
-    Dump(universe, dumpName)
 end
 
 function Run!(universe::Universe)
@@ -426,6 +428,7 @@ function Run!(universe::Universe)
 end
 
 
+
 Random.seed!(31415926)
 const SIA_DISAPPEAR_RATE = 1E-7
 const MAX_DEFECT_SIZE = 10000
@@ -435,9 +438,11 @@ cellLength = 20
 universe = Universe(mapSize, cellLength)
 const dumpName = "./run/run.dump"
 RefreshFile!(dumpName)
+Run_small!(universe)
+
 #InitRadius!(universe)
 #Run!(universe)
-Init!(universe)
+#Init!(universe)
 #Init!(universe)
 #Run!(universe)
 #empty
