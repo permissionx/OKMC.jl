@@ -24,7 +24,10 @@ function Dump(universe::Universe, fileName::String, mode::String="a")
     close(file)
 end
 
-
+function RefreshFile!(fileName)
+    file = open(fileName, "w")
+    close(file)
+end
 
 macro print_distribution(p::Symbol)
     type = :(typeof(universe.defects[1].$p))

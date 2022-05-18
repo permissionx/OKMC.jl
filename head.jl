@@ -51,13 +51,13 @@ end
 mutable struct Defect
     index::Int64
     type::Int64
-    coord::Vector{Int64}
+    coord::Vector{Float64}
     directionIndex::Int64
     size::Int64
     radius::Float64
     cellIndex::Int64
     behaviors::Behaviors
-    function Defect(coord::Vector{Int64}, type::Int64, directionIndex::Int64, size::Int64)
+    function Defect(coord::Vector{Float64}, type::Int64, directionIndex::Int64, size::Int64)
         index = 0 
         cellIndex = 0
         behaviors = Behaviors()
@@ -110,7 +110,7 @@ end
 mutable struct Universe
     nStep::Int64
     maxIndex::Int64
-    mapSize::Vector{Int64}
+    mapSize::Vector{Float64}
     cellLength::Int64
     nsCells::Vector{Int64} #numbers of cells in 3 dimensions
     cells::Array{Cell, 3}
@@ -119,7 +119,7 @@ mutable struct Universe
     totalProbability::Float64
     constants::Constants
     history::History
-    function Universe(mapSize::Vector{Int64}, cellLength::Int64)
+    function Universe(mapSize::Vector{Float64}, cellLength::Int64)
         nsCells = floor.(Int64, mapSize / cellLength)
         cells = Array{Cell, 3}(undef, nsCells[1], nsCells[2], nsCells[3])
         cellIndex = 0

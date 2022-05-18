@@ -1,12 +1,9 @@
 include("head.jl")
 include("output.jl")
 
-function RefreshFile!(fileName)
-    file = open(fileName, "w")
-    close(file)
-end
 
-CellCoord(universe::Universe, coord::Vector{Int64}) = floor.(Int64, coord/universe.cellLength ) .+ 1
+
+CellCoord(universe::Universe, coord::Vector{Float64}) = floor.(Int64, coord/universe.cellLength ) .+ 1
 
 function GetCell(universe::Universe, cellCoord::Vector{Int64})
     for i in 1:3
@@ -58,12 +55,12 @@ function InitCells!(universe::Universe)
     end
 end
 
-function Delta(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int64}) 
+function Delta(universe::Universe, coord1::Vector{Float64}, coord2::Vector{Float64}) 
     # vactor points from 1 to 2 
     (coord2 - coord1)
 end
 
-function Delta(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int64}, crossSign::Vector{Int64})
+function Delta(universe::Universe, coord1::Vector{Float64}, coord2::Vector{Float64}, crossSign::Vector{Int64})
     delta = coord2 - coord1
     for i in 1:3
         delta[i] += crossSign[i] * universe.mapSize[i]
@@ -71,12 +68,12 @@ function Delta(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int64},
     delta
 end
 
-function Distance(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int64})
+function Distance(universe::Universe, coord1::Vector{Float64}, coord2::Vector{Float64})
     delta = Delta(universe, coord1, coord2)
     sqrt(sum(delta .* delta))
 end
 
-function Distance(universe::Universe, coord1::Vector{Int64}, coord2::Vector{Int64}, crossSign::Vector{Int64})
+function Distance(universe::Universe, coord1::Vector{Float64}, coord2::Vector{Float64}, crossSign::Vector{Int64})
     delta = Delta(universe, coord1, coord2, crossSign)
     sqrt(sum(delta .* delta))
 end
@@ -107,7 +104,7 @@ function FindNeighbors(universe::Universe, defect::Defect)
     neighbors, crossSigns
 end
 
-function PBCCoord!(universe::Universe, coord::Vector{Int64})
+function PBCCoord!(universe::Universe, coord::Vector{Float64})
     for i in 1:3
         if coord[i] < 0
             coord[i] = coord[i] + universe.mapSize[i]
@@ -132,7 +129,6 @@ function Reaction!(universe::Universe, defect1::Defect, defect2::Defect, crossSi
     if largeDefect.type == smallDefect.type
         #combine
         center = (largeDefectCoord*largeDefect.size + smallDefectCoord*smallDefect.size) / (largeDefect.size + smallDefect.size)
-        newCoord = round.(Int64, center)
         ChangeSize!(universe, largeDefect, largeDefect.size + smallDefect.size)
         delete!(universe, smallDefect)
         Move!(universe, largeDefect, newCoord)
@@ -153,7 +149,6 @@ function Reaction!(universe::Universe, defect1::Defect, defect2::Defect, crossSi
                 for i in 1:3
                     newCoordFloat[i] = largeDefect.coord[i] - moveLength * delta[i] / distance
                 end
-                newCoord = round.(Int64, newCoordFloat)
                 Move!(universe, largeDefect, newCoord)
             end
         end
@@ -269,7 +264,7 @@ function Base.delete!(cell::Cell, defect::Defect)
     deleteat!(cell.defects, findfirst(x->x.index==defect.index, cell.defects))
 end
 
-function Move!(universe::Universe, defect::Defect, coord::Vector{Int64})
+function Move!(universe::Universe, defect::Defect, coord::Vector{Float64})
     PBCCoord!(universe, coord)
     defect.coord = coord
     CrossCells!(universe, defect)
@@ -409,13 +404,19 @@ end
 
 function Run_small!(universe::Universe)
     Init!(universe)
-    while universe.nStep <= 1_000_000
-        @do_every 100 quote
-            defect = Defect(rand(0:199,3), rand(1:2), rand(1:4), rand(1:1))
-            push!(universe, defect)
+    defect1 = Defect([100,100,110], 2, rand(1:4), 1)
+    push!(universe, defect1)
+    defect2 = Defect([100,100,100], 1, rand(1:4), 5)
+    push!(universe, defect2)
+    while universe.nStep <= 100
+        Move!(universe, defect1, defect1.coord - [0,0,1])
+        universe.nStep += 1
+        Dump(universe, dumpName)
+        if length(universe.defects) < 2
+            break
         end
         #exit()
-        IterStep!(universe)
+        #IterStep!(universe)
         #@do_every 1 RecordSV!(universe)
         #@do_every 1 quote
         #    print(universe)
@@ -428,7 +429,7 @@ function Run!(universe::Universe)
     Init!(universe)
     while universe.nStep <= 1_000_000_000_000
         @do_every 100_000 quote
-            defect = Defect(rand(0:199,3), rand(1:2), rand(1:4), rand(1:1))
+            defect = Defect(rand(0.:199.,3), rand(1:2), rand(1:4), rand(1:1))
             push!(universe, defect)
         end
         #exit()
@@ -447,13 +448,12 @@ Random.seed!(31415926)
 const SIA_DISAPPEAR_RATE = 1E-7
 const MAX_DEFECT_SIZE = 10000
 const OUTPUT_HEIGHTS = 40
-mapSize = [200,200,200]
+mapSize = [200.,200.,200.]
 cellLength = 20
 universe = Universe(mapSize, cellLength)
-const dumpName = "./run/run.dump"
+const dumpName = "./test/run.dump"
 RefreshFile!(dumpName)
-@time Run_small!(universe)
-
+Run_small!(universe)
 #InitRadius!(universe)
 #Run!(universe)
 #Init!(universe)
@@ -466,7 +466,7 @@ RefreshFile!(dumpName)
 
 
 # todo: 
-# fix boundary cells ❓
+# fix boundary cells ✔️
 # realistic probability ❓
 # beatifify screen output ✔️
 # outpot dataframe for python plot ✔️
