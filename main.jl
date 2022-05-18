@@ -393,7 +393,15 @@ function Test!(universe::Universe)
     Dump(universe, dumpName)
 end
 
-macro do_every(n::Int64, f::Expr)
+macro do_every(n::Int64, f::Expr) 
+    return quote 
+        if universe.nStep%$n == 0
+            eval($f)
+        end
+    end
+end
+
+macro do_every(n::Float64, f::Expr) 
     return quote 
         if universe.nStep%$n == 0
             eval($f)
@@ -404,38 +412,32 @@ end
 
 function Run_small!(universe::Universe)
     Init!(universe)
-    defect1 = Defect([110.,110.,110.], 2, rand(1:4), 1)
-    push!(universe, defect1)
-    defect2 = Defect([100.,100.,100.], 1, rand(1:4), 5)
-    push!(universe, defect2)
-    while universe.nStep <= 100
-        Move!(universe, defect1, defect1.coord - [1,1,1])
-        universe.nStep += 1
-        Dump(universe, dumpName)
-        if length(universe.defects) < 2
-            break
-        end
+    while universe.nStep <= 10000
         #exit()
-        #IterStep!(universe)
-        #@do_every 1 RecordSV!(universe)
-        #@do_every 1 quote
-        #    print(universe)
-        #    Dump(universe, dumpName)
-        #end
+        @do_every 10 quote
+            defect = Defect(rand(0.:199.,3), 1, rand(1:4), rand(1:1))
+            push!(universe, defect)
+        end
+        IterStep!(universe)
+        RecordSV!(universe)
+        #print(universe)
+        @do_every 100 println(universe.nStep)
+        @do_every 100 Dump(universe, dumpName)
     end
 end
 
+
 function Run!(universe::Universe)
     Init!(universe)
-    while universe.nStep <= 1_000_000_000_000
-        @do_every 100_000 quote
+    while universe.nStep <= 1E11
+        @do_every 1E4 quote
             defect = Defect(rand(0.:199.,3), rand(1:2), rand(1:4), rand(1:1))
             push!(universe, defect)
         end
         #exit()
         IterStep!(universe)
-        @do_every 10_000_000 RecordSV!(universe)
-        @do_every 100_000_000 quote
+        @do_every 1E6 RecordSV!(universe)
+        @do_every 1E7 quote
             print(universe)
             Dump(universe, dumpName)
         end
@@ -451,9 +453,10 @@ const OUTPUT_HEIGHTS = 40
 mapSize = [200.,200.,200.]
 cellLength = 20
 universe = Universe(mapSize, cellLength)
-const dumpName = "./test/run.dump"
+#const dumpName = "./run/run.dump"
+const dumpName = "/mnt/c/Users/XUKE/Desktop/run.dump"
 RefreshFile!(dumpName)
-Run_small!(universe)
+Run!(universe)
 #InitRadius!(universe)
 #Run!(universe)
 #Init!(universe)
