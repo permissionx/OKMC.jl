@@ -93,9 +93,12 @@ function Base.print(universe::Universe)
     print(:blue, "Step ")
     println(universe.nStep)
     print("👾 ")
-    print(:red, "Defect number ")
-    println("$(length(universe.defects)) \
-               (including $(universe.history.nsSia[end]) SIAs & $(universe.history.nsVac[end]) Vacancies)")
+    println(:red, "Defect number ")
+    println("$(length(universe.defects)) including\
+               \n $(universe.history.nsSia[end]) SIAs & $(universe.history.nsVac[end]) Vacancies)")
+    nSia, nVac = SiaAndVacNumber(universe)
+    print("$(nSia) single SIAs, $(nVac) single Vacancies")
+    println("")
     print("📊 ")
     print(:green, "Current distributions\n")
     @print_distribution radius
@@ -107,4 +110,17 @@ function Base.print(universe::Universe)
         println()
     end
     flush(stdout)
+end
+
+function SiaAndVacNumber(universe::Universe)
+    nSia = 0
+    nVac = 0
+    for defect in universe.defects
+        if defect.type == 1
+            nSia += defect.size
+        else
+            nVac += defect.size
+        end
+    end
+    nSia, nVac
 end

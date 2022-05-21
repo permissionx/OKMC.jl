@@ -115,6 +115,9 @@ function PBCCoord!(universe::Universe, coord::Vector{Float64})
 end
 
 function Reaction!(universe::Universe, defect1::Defect, defect2::Defect, crossSign::Vector{Int64})
+    if defect1.type == defect2.type == 1
+        return
+    end
     if defect1.size > defect2.size
         largeDefect = defect1
         largeDefectCoord = defect1.coord
@@ -224,6 +227,7 @@ function ChangeBehaviors!(universe::Universe, defect::Defect)
     end
     defect.behaviors.probabilities = probabilities
     probability = sum(probabilities)
+    defect.behaviors.probability = probability
     i = findfirst(x->x.index===defect.index, universe.defects)
     universe.defectProbabilities[i] = probability
     universe.totalProbability += probability - oldProbability
@@ -288,7 +292,8 @@ function RandomADefect(universe::Universe)
 end
 
 function RandomABehavior(defect::Defect)
-    sample(defect.behaviors.types, Weights(defect.behaviors.probabilities))
+    weights = Weights(defect.behaviors.probabilities)
+    sample(defect.behaviors.types, weights)
 end
 
 function Behave!(universe::Universe, defect::Defect, type::Int64)
@@ -357,9 +362,11 @@ end
 
 function IterStep!(universe::Universe)
     universe.nStep += 1
-    defect = RandomADefect(universe)
-    type = RandomABehavior(defect)
-    Behave!(universe, defect, type)
+    if universe.totalProbability != 0 
+        defect = RandomADefect(universe)
+        type = RandomABehavior(defect)
+        Behave!(universe, defect, type)
+    end
 end
 
 
@@ -376,11 +383,13 @@ function InitRadius!(universe::Universe)
     universe.constants.siaRadii = siaRadii
 end
 
+
 function Init!(universe::Universe)
     InitCells!(universe)
     InitRadius!(universe)
     run(`tput sc`)
 end
+
 
 function End(universe::Universe)
     run(`tput sc`)

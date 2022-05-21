@@ -4,7 +4,7 @@ function Run!(universe::Universe)
     Init!(universe)
     while universe.nStep <= 1E11
         @do_every 1E4 quote
-            defect = Defect(rand(0.:199.,3), rand(1:2), rand(1:4), rand(1:1))
+            defect = Defect(rand(0.:199.,3), 2, rand(1:4), rand(1:1))
             push!(universe, defect)
         end
         #exit()
@@ -20,8 +20,8 @@ end
 
 
 Random.seed!(31415926)
-const SIA_DISAPPEAR_RATE = 1E-7
-const MAX_DEFECT_SIZE = 10000
+const SIA_DISAPPEAR_RATE = 0
+const MAX_DEFECT_SIZE = 1000
 const OUTPUT_HEIGHTS = 40
 mapSize = [200.,200.,200.]
 cellLength = 20
