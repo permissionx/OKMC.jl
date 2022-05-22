@@ -398,6 +398,8 @@ function End(universe::Universe)
 end
 
 function Test!(universe::Universe)
+    RefreshFile(dumpName)
+    InitLog(logName)
     Init!(universe)
     defect = Defect(rand(0:99,3), 2, rand(1:4), rand(10:20))
     push!(universe, defect)
