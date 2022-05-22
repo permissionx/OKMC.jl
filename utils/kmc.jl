@@ -155,6 +155,7 @@ function Reaction!(universe::Universe, defect1::Defect, defect2::Defect, crossSi
                 Move!(universe, largeDefect, newCoord)
             end
         end
+        universe.record.annihilatedSias += smallDefect.size
     end
 end
 
@@ -310,6 +311,7 @@ function Migrate!(universe::Universe, defect::Defect)
     if defect.type == 1
         r = rand()
         if r <= SIA_DISAPPEAR_RATE
+            universe.record.sinkedSias += defect.size
             delete!(universe, defect)
             return
         end
