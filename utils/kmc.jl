@@ -1,8 +1,6 @@
 include("head.jl")
 include("output.jl")
 
-
-
 CellCoord(universe::Universe, coord::Vector{Float64}) = floor.(Int64, coord/universe.cellLength ) .+ 1
 
 function GetCell(universe::Universe, cellCoord::Vector{Int64})
@@ -155,7 +153,7 @@ function Reaction!(universe::Universe, defect1::Defect, defect2::Defect, crossSi
                 Move!(universe, largeDefect, newCoord)
             end
         end
-        universe.record.annihilatedSias += smallDefect.size
+        universe.record.annihilatedSiaNum += smallDefect.size
     end
 end
 
@@ -276,6 +274,7 @@ function Move!(universe::Universe, defect::Defect, coord::Vector{Float64})
     Changed!(universe, defect)
 end
 
+
 function CrossCells!(universe::Universe, defect::Defect)
     cellCoord = CellCoord(universe, defect.coord)
     cell = GetCell(universe, cellCoord)
@@ -311,7 +310,7 @@ function Migrate!(universe::Universe, defect::Defect)
     if defect.type == 1
         r = rand()
         if r <= SIA_DISAPPEAR_RATE
-            universe.record.sinkedSias += defect.size
+            universe.record.sinkedSiaNum += defect.size
             delete!(universe, defect)
             return
         end
@@ -387,6 +386,8 @@ end
 
 
 function Init!(universe::Universe)
+    InitLog(logName)
+    RefreshFile(dumpName)
     InitCells!(universe)
     InitRadius!(universe)
     run(`tput sc`)
@@ -414,6 +415,7 @@ macro do_every(n::Int64, f::Expr)
     end
 end
 
+
 macro do_every(n::Float64, f::Expr) 
     return quote 
         if universe.nStep%$n == 0
@@ -440,12 +442,8 @@ function Run_small!(universe::Universe)
 end
 
 
-
-
 # todo: 
 # fix boundary cells ✔️
 # realistic probability ❓
 # beatifify screen output ✔️
 # outpot dataframe for python plot ✔️
-
-

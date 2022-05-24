@@ -24,7 +24,6 @@ const SECOND_NEIGHBORS = [[2,0,0],
                           [0,0,2], 
                           [0,0,-2]]
 
-
 mutable struct Constants
     siaRadii::Vector{Float64}
     vacRadii::Vector{Float64}
@@ -33,8 +32,7 @@ mutable struct Constants
         vacRadii = Float64[]
         new(siaRadii, vacRadii)
     end
-end
-                        
+end 
 
 mutable struct Behaviors
     types::Vector{Int64}  #1 for diffusion, 2 for redirection
@@ -65,7 +63,6 @@ mutable struct Defect
     end
 end
 
-
 mutable struct Cell
     index::Int64
     normalNeighbors::Vector{Cell}
@@ -94,25 +91,31 @@ function Base.display(cells::Array{Cell})
     end
 end
 
+
 mutable struct History
     steps::Vector{Int64}
-    nsSia::Vector{Int64}
-    nsVac::Vector{Int64}
-    sinkedSiasVector::Vector{Int64}
-    annihilatedSiasVector::Vector{Int64}
+    siaNums::Vector{Int64}
+    vacNums::Vector{Int64}
+    siaClusterNums::Vector{Int64}
+    vacClusterNums::Vector{Int64}
+    sinkedSiaNums::Vector{Int64}
+    annihilatedSiaNums::Vector{Int64}
     function History()
         steps = Int64[]
-        nsSia = Int64[]
-        nsVac = Int64[]
-        sinkedSias = Int64[]
-        annihilateSias = Int64[]
-        new(steps, nsSia, nsVac, sinkedSias, annihilateSias)
+        siaNums = Int64[]
+        vacNums = Int64[]
+        siaClusterNums = Int64[]
+        vacClusterNums = Int64[]
+        sinkedSiaNums = Int64[]
+        annihilatedSiaNums = Int64[]
+        new(steps, siaNums, vacNums, siaClusterNums, vacClusterNums, sinkedSiaNums, annihilatedSiaNums)
     end
 end
 
+
 mutable struct Record
-    sinkedSias::Int64
-    annihilatedSias::Int64
+    sinkedSiaNum::Int64
+    annihilatedSiaNum::Int64
     function Record()
         new(0,0)
     end

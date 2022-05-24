@@ -56,20 +56,38 @@ function RecordSV!(universe::Universe)
             nVac += 1
         end
     end
-    push!(universe.history.nsSia, nSia)
-    push!(universe.history.nsVac, nVac)
+    push!(universe.history.siaClusterNums, nSia)
+    push!(universe.history.vacClusterNums, nVac)
 end
 
-function RecordSinkOrAnnihilate!(universe::Universe)
-    push!(universe.history.sinkedSiasVector, universe.record.sinkedSias)
-    push!(universe.history.annihilatedSiasVector, universe.record.annihilatedSias)
-    universe.record.annihilatedSias = 0
-    universe.record.sinkedSias = 0
+
+function RecordSingleSV!(universe::Universe)
+    nSia = 0
+    nVac = 0
+    for defect in universe.defects
+        if defect.type == 1
+            nSia += defect.size
+        else
+            nVac += defect.size
+        end
+    end
+    push!(universe.history.siaNums, nSia)
+    push!(universe.history.vacNums, nVac)
 end
+
+
+function RecordSinkOrAnnihilate!(universe::Universe)
+    push!(universe.history.sinkedSiaNums, universe.record.sinkedSiaNum)
+    push!(universe.history.annihilatedSiaNums, universe.record.annihilatedSiaNum)
+    universe.record.annihilatedSiaNum = 0
+    universe.record.sinkedSiaNum = 0
+end
+
 
 function Record!(universe::Universe)
     push!(universe.history.steps, universe.nStep)
     RecordSV!(universe)
+    RecordSingleSV!(universe)
     RecordSinkOrAnnihilate!(universe)
 end
 
@@ -119,7 +137,7 @@ function Base.print(universe::Universe)
     print("👾 ")
     print(:red, "Defect number $(length(universe.defects))")
     print(" including\n")
-    println(" $(universe.history.nsSia[end]) SIAs & $(universe.history.nsVac[end]) Vacancies")
+    println(" $(universe.history.siaClusterNums[end]) SIAs & $(universe.history.vacClusterNums[end]) Vacancies")
     nSia, nVac = SiaAndVacNumber(universe)
     print(" $(nSia) single SIAs & $(nVac) single Vacancies")
     println("")
@@ -128,9 +146,9 @@ function Base.print(universe::Universe)
     @print_distribution radius
     print("📅 ")
     print(:yellow, "Attributs\n")
-    PrintHistory(universe.history.steps, [universe.history.nsVac, universe.history.nsSia], 
+    PrintHistory(universe.history.steps, [universe.history.vacClusterNums, universe.history.siaClusterNums], 
                 ["Vacancy","SIA"], "SIA/vacancy number")
-    PrintHistory(universe.history.steps, [universe.history.sinkedSiasVector, universe.history.annihilatedSiasVector], 
+    PrintHistory(universe.history.steps, [universe.history.sinkedSiaNums, universe.history.annihilatedSiaNums], 
                 ["sinked","annihilated"], "Sinked/annihilated SIA")
     for _ in 1:2
         println()
@@ -142,10 +160,10 @@ end
 function Log(universe::Universe, logName::String)
     file = open(logName, "a")
     write(file, "$(universe.nStep)")
-    write(file, " $(universe.history.nsSia[end])")
-    write(file, " $(universe.history.nsVac[end])")
-    write(file, " $(universe.history.sinkedSiasVector[end])")
-    write(file, " $(universe.history.annihilatedSiasVector[end])")
+    write(file, " $(universe.history.siaClusterNums[end])")
+    write(file, " $(universe.history.vacClusterNums[end])")
+    write(file, " $(universe.history.sinkedSiaNums[end])")
+    write(file, " $(universe.history.annihilatedSiaNums[end])")
     write(file, "\n")
     close(file)
 end
