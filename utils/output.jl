@@ -79,8 +79,10 @@ end
 function RecordSinkOrAnnihilate!(universe::Universe)
     push!(universe.history.sinkedSiaNums, universe.record.sinkedSiaNum)
     push!(universe.history.annihilatedSiaNums, universe.record.annihilatedSiaNum)
+    push!(universe.history.sinkedVacNums, universe.record.sinkedVacNum)
     universe.record.annihilatedSiaNum = 0
     universe.record.sinkedSiaNum = 0
+    universe.record.sinkedVacNum = 0
 end
 
 
@@ -122,10 +124,12 @@ function Base.print(universe::Universe)
     run(`tput sc`)
     print("🚀 ")
     print(:blue, "Step ")
-    println(universe.nStep)
+    print(universe.nStep)
+    print(:blue, " Time ")
+    println("$(universe.time) s")
     print("👾 ")
-    print(:red, "Defect number $(length(universe.defects))")
-    print(" including\n")
+    print(:red, "Defect number ")
+    print("$(length(universe.defects))\n including\n")
     println(" $(universe.history.siaClusterNums[end]) SIA clusters & $(universe.history.vacClusterNums[end]) Vacancy clusters")
     print(" $(universe.history.siaNums[end]) single SIAs & $(universe.history.vacNums[end]) single Vacancies")
     println("")

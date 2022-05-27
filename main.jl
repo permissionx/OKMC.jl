@@ -19,11 +19,12 @@ function Run!(universe::Universe)
     end
 end
 
-
+# -----------------------INPUT---------------------------
 Random.seed!(31415926)
-const SIA_DISAPPEAR_RATE = 0.00005
+const SIA_DISAPPEAR_RATE = 1.4E-7
+const VAC_DISAPPEAR_RATE = 4.5E-8
 const MAX_DEFECT_SIZE = 30000
-const OUTPUT_HEIGHTS = 50
+const OUTPUT_HEIGHTS = 40
 mapSize = [200.,200.,200.]
 cellLength = 20
 const k_B = 8.617E-5 # eV/K
@@ -35,14 +36,14 @@ const SIA_K0 = 1.43E12
 const SIA_ALPHA = -0.365
 const SIA_MIGRATE_BARRIER = 0.04
 const SIA_STEER_BARRIER = 0.38
-const TEMPERATURE = 300 # K
-
-
-universe = Universe(mapSize, cellLength)
-#const dumpName = "./run/run.dump"
+const TEMPERATURE = 1000.0 # K
 const dumpName = "./run.dump"
 const logName = "./run.log"
+# -----------------------END INPUT-------------------------
+
+universe = Universe(mapSize, cellLength)
 Run!(universe)
+#Run!(universe)
 #InitRadius!(universe)
 #Run!(universe)
 #Init!(universe)
@@ -55,7 +56,7 @@ Run!(universe)
 
 # todo: 
 # fix boundary cells ✔️
-# realistic frequency ❓
+# realistic frequency ✔️  check carefully ❓
 # beatifify screen output ✔️
 # outpot dataframe for python plot ✔️
 

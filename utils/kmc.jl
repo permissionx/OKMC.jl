@@ -168,6 +168,7 @@ function Changed!(universe::Universe, defect::Defect)
     end
 end
 
+
 function SiaFrequencies(universe::Universe, size::Int64)
     # 1 for migration, 2 for sterring
     if size == 1
@@ -177,43 +178,46 @@ function SiaFrequencies(universe::Universe, size::Int64)
     end
 end
 
-function InitSiaFrequencies!(universe::Universe)
-    # units : s, eV
-    universe.constants.siaMigrationFrequencies = Float64[]
-    for i in 1:MAX_DEFECT_SIZE
-        k0 = SIA_K0*i^SIA_ALPHA
-        frequency = k0*exp(-SIA_MIGRATE_BARRIER/universe.temperature/k_B)
-        push!(universe.constants.siaMigrationFrequencies, frequency)
+function VacFrequencies(universe::Universe, size::Int64)
+    # 1 for migration, 2 for emittion
+    if size <= length(VAC_MIGRATE_BARRIERS)
+        return [universe.constants.vacMigrateFrequencies[size], universe.constants.vacEmitFrequencies[size]]
+    else
+        return [0.0, universe.constants.vacEmitFrequencies[size]]
     end
-    # todo: check the k0 for the steering ❓
-    universe.constants.siaSteerFrequency = SIA_K0*exp(-SIA_MIGRATE_BARRIER/universe.temperature/k_B)
 end
-
 
 function InitFrequencies!(universe::Universe)
     InitVacFrequencies!(universe::Universe)
     InitSiaFrequencies!(universe::Universe)
 end
 
-
-
-function VacFrequencies(universe::Universe, size::Int64)
-    # 1 for migration, 2 for emittion
-    return [universe.constants.vacMigrateFrequencies[size], universe.constants.vacEmitFrequencies[size]]
+function InitSiaFrequencies!(universe::Universe)
+    # units : s, eV
+    universe.constants.siaMigrateFrequencies = Float64[]
+    for i in 1:MAX_DEFECT_SIZE
+        k0 = SIA_K0*i^SIA_ALPHA
+        frequency = k0*exp(-SIA_MIGRATE_BARRIER/universe.temperature/k_B)
+        push!(universe.constants.siaMigrateFrequencies, frequency)
+    end
+    # todo: check the k0 for the steering ❓
+    universe.constants.siaSteerFrequency = SIA_K0*exp(-SIA_MIGRATE_BARRIER/universe.temperature/k_B)
 end
+
+
 
 function InitVacFrequencies!(universe::Universe)
     # units : s, eV
-    universe.constants.vacMigrationFrequencies = Float64[]
+    universe.constants.vacMigrateFrequencies = Float64[]
     universe.constants.vacEmitFrequencies = Float64[]
     k0 = VAC_K0
     for i in 1:MAX_DEFECT_SIZE
         if i <= length(VAC_MIGRATE_BARRIERS)
             barrier = VAC_MIGRATE_BARRIERS[i]
             frequency = k0*exp(-barrier/universe.temperature/k_B)
-            push!(universe.constants.vacMigrationFrequencies, frequency)
+            push!(universe.constants.vacMigrateFrequencies, frequency)
         else
-            push!(universe.constants.vacMigrationFrequencies, 0.0)
+            push!(universe.constants.vacMigrateFrequencies, 0.0)
         end
     end
 
@@ -357,8 +361,8 @@ function Behave!(universe::Universe, defect::Defect, type::Int64)
 end
 
 function Migrate!(universe::Universe, defect::Defect)
+    r = rand()
     if defect.type == 1
-        r = rand()
         if r <= SIA_DISAPPEAR_RATE
             universe.record.sinkedSiaNum += defect.size
             delete!(universe, defect)
@@ -369,6 +373,11 @@ function Migrate!(universe::Universe, defect::Defect)
         newCoord = defect.coord + displace
         Move!(universe, defect, newCoord)
     else
+        if r <= VAC_DISAPPEAR_RATE
+            universe.record.sinkedVacNum += defect.size
+            delete!(universe, defect)
+            return
+        end
         displace = sample(FIRST_NEIGHBORS)
         newCoord = defect.coord + displace
         Move!(universe, defect, newCoord)

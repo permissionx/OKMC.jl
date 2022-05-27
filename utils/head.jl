@@ -109,6 +109,7 @@ mutable struct History
     vacClusterNums::Vector{Int64}
     sinkedSiaNums::Vector{Int64}
     annihilatedSiaNums::Vector{Int64}
+    sinkedVacNums::Vector{Int64}
     function History()
         steps = Int64[]
         times = Float64[]
@@ -118,7 +119,9 @@ mutable struct History
         vacClusterNums = Int64[]
         sinkedSiaNums = Int64[]
         annihilatedSiaNums = Int64[]
-        new(steps, times, siaNums, vacNums, siaClusterNums, vacClusterNums, sinkedSiaNums, annihilatedSiaNums)
+        sinkedVacNums = Int64[]
+        new(steps, times, siaNums, vacNums, siaClusterNums, vacClusterNums, 
+            sinkedSiaNums, annihilatedSiaNums, sinkedVacNums)
     end
 end
 
@@ -126,8 +129,9 @@ end
 mutable struct Record
     sinkedSiaNum::Int64
     annihilatedSiaNum::Int64
+    sinkedVacNum::Int64
     function Record()
-        new(0,0)
+        new(0,0,0)
     end
 end
 
@@ -135,6 +139,7 @@ end
 mutable struct Universe
     nStep::Int64
     time::Float64
+    temperature::Float64
     maxIndex::Int64
     mapSize::Vector{Float64}
     cellLength::Int64
@@ -163,7 +168,8 @@ mutable struct Universe
         history = History()
         record = Record()
         time = 0.0
-        new(time, nStep, maxIndex, mapSize, cellLength, nsCells, cells, defects, 
+        temperature = 1000.0
+        new(time, nStep, temperature, maxIndex, mapSize, cellLength, nsCells, cells, defects, 
             defectFrequencies, totalFrequency, constants, history, record)
     end
 end
