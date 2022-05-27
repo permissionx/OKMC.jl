@@ -473,37 +473,25 @@ function Test!(universe::Universe)
     Dump(universe, dumpName)
 end
 
-macro do_every(n::Int64, f::Expr) 
-    return quote 
-        if universe.nStep%$n == 0
-            eval($f)
-        end
-    end
-end
-
-
-macro do_every(n::Float64, f::Expr) 
-    return quote 
-        if universe.nStep%$n == 0
-            eval($f)
-        end
-    end
-end
 
 
 function Run_small!(universe::Universe)
     Init!(universe)
     while universe.nStep <= 10000
         #exit()
-        @do_every 10 quote
+        if universe.nStep & 10 == 0
             defect = Defect(rand(0.:199.,3), 1, rand(1:4), rand(1:1))
             push!(universe, defect)
         end
         IterStep!(universe)
         RecordSV!(universe)
         #print(universe)
-        @do_every 100 println(universe.nStep)
-        @do_every 100 Dump(universe, dumpName)
+        if universe.nStep & 100 == 0 
+            println(universe.nStep) 
+        end
+        if universe.nStep & 100 == 0 
+            Dump(universe, dumpName) 
+        end
     end
 end
 

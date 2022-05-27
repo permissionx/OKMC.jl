@@ -3,16 +3,16 @@ include("utils/kmc.jl")
 function Run!(universe::Universe)
     Init!(universe)
     while universe.nStep <= 1E11
-        @do_every 1E4 quote
+        if universe.nStep % 1E4 == 0
             defect = Defect(rand(0.:199.,3), rand(1:2), rand(1:4), rand(1:1))
             push!(universe, defect)
         end
         #exit()
         IterStep!(universe)
-        @do_every 1E5 quote 
+        if universe.nStep % 1E5 == 0
             Record!(universe)
         end
-        @do_every 1E7 quote
+        if universe.nStep % 1E7 == 0
             print(universe)
             Dump(universe, dumpName)
         end
@@ -42,7 +42,7 @@ const logName = "./run.log"
 # -----------------------END INPUT-------------------------
 
 universe = Universe(mapSize, cellLength)
-Run!(universe)
+#Run!(universe)
 #Run!(universe)
 #InitRadius!(universe)
 #Run!(universe)
