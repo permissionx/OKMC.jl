@@ -42,7 +42,7 @@ const logName = "./run.log"
 # -----------------------END INPUT-------------------------
 
 universe = Universe(mapSize, cellLength)
-#Run!(universe)
+Run!(universe)
 #Run!(universe)
 #InitRadius!(universe)
 #Run!(universe)

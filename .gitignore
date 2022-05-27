@@ -1,4 +1,5 @@
 *.gz
 *.pb.gz
 *.dump
+*.log
 test/
