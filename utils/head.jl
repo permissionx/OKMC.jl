@@ -27,22 +27,30 @@ const SECOND_NEIGHBORS = [[2,0,0],
 mutable struct Constants
     siaRadii::Vector{Float64}
     vacRadii::Vector{Float64}
+    vacMigrateFrequencies::Vector{Float64}
+    siaMigrateFrequencies::Vector{Float64}
+    siaSteerFrequency::Float64
+    vacEmitFrequencies::Vector{Float64}
     function Constants()
         siaRadii = Float64[]
         vacRadii = Float64[]
-        new(siaRadii, vacRadii)
+        vacMigrateFrequencies = Float64[]
+        siaMigrateFrequencies = Float64[]
+        siaSteerFrequency = 0.0
+        vacEmitFrequencies = Float64[]
+        new(siaRadii, vacRadii, vacMigrateFrequencies, siaMigrateFrequencies, siaSteerFrequency, vacEmitFrequencies)
     end
 end 
 
 mutable struct Behaviors
     types::Vector{Int64}  #1 for diffusion, 2 for redirection
-    probabilities::Vector{Float64}
-    probability::Float64
+    frequencies::Vector{Float64}
+    frequency::Float64
     function Behaviors()
         types = Int64[]
-        probabilities = Float64[]
-        probability = 0.0
-        new(types, probabilities, probability)
+        frequencies = Float64[]
+        frequency = 0.0
+        new(types, frequencies, frequency)
     end
 end
 
@@ -94,6 +102,7 @@ end
 
 mutable struct History
     steps::Vector{Int64}
+    times::Vector{Float64}
     siaNums::Vector{Int64}
     vacNums::Vector{Int64}
     siaClusterNums::Vector{Int64}
@@ -102,13 +111,14 @@ mutable struct History
     annihilatedSiaNums::Vector{Int64}
     function History()
         steps = Int64[]
+        times = Float64[]
         siaNums = Int64[]
         vacNums = Int64[]
         siaClusterNums = Int64[]
         vacClusterNums = Int64[]
         sinkedSiaNums = Int64[]
         annihilatedSiaNums = Int64[]
-        new(steps, siaNums, vacNums, siaClusterNums, vacClusterNums, sinkedSiaNums, annihilatedSiaNums)
+        new(steps, times, siaNums, vacNums, siaClusterNums, vacClusterNums, sinkedSiaNums, annihilatedSiaNums)
     end
 end
 
@@ -124,14 +134,15 @@ end
 
 mutable struct Universe
     nStep::Int64
+    time::Float64
     maxIndex::Int64
     mapSize::Vector{Float64}
     cellLength::Int64
     nsCells::Vector{Int64} #numbers of cells in 3 dimensions
     cells::Array{Cell, 3}
     defects::Vector{Defect}
-    defectProbabilities::Vector{Float64}
-    totalProbability::Float64
+    defectFrequencies::Vector{Float64}
+    totalFrequency::Float64
     constants::Constants
     history::History
     record::Record
@@ -144,14 +155,15 @@ mutable struct Universe
             cells[i] = Cell(cellIndex)
         end
         defects = Defect[]
-        defectProbabilities = Float64[]
+        defectFrequencies = Float64[]
         maxIndex = 0
-        totalProbability = 0 
+        totalFrequency = 0 
         nStep = 0
         constants = Constants()
         history = History()
         record = Record()
-        new(nStep, maxIndex, mapSize, cellLength, nsCells, cells, defects, 
-            defectProbabilities, totalProbability, constants, history, record)
+        time = 0.0
+        new(time, nStep, maxIndex, mapSize, cellLength, nsCells, cells, defects, 
+            defectFrequencies, totalFrequency, constants, history, record)
     end
 end

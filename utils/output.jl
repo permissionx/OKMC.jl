@@ -86,6 +86,7 @@ end
 
 function Record!(universe::Universe)
     push!(universe.history.steps, universe.nStep)
+    push!(universe.history.times, universe.time)
     RecordSV!(universe)
     RecordSingleSV!(universe)
     RecordSinkOrAnnihilate!(universe)
@@ -110,18 +111,6 @@ function Base.print(symbol::Symbol, string::String)
 end
 
 
-function SiaAndVacNumber(universe::Universe)
-    nSia = 0
-    nVac = 0
-    for defect in universe.defects
-        if defect.type == 1
-            nSia += defect.size
-        else
-            nVac += defect.size
-        end
-    end
-    nSia, nVac
-end
 
 function Base.print(universe::Universe)
     #println("Step:", universe.nStep)
@@ -137,9 +126,8 @@ function Base.print(universe::Universe)
     print("👾 ")
     print(:red, "Defect number $(length(universe.defects))")
     print(" including\n")
-    println(" $(universe.history.siaClusterNums[end]) SIAs & $(universe.history.vacClusterNums[end]) Vacancies")
-    nSia, nVac = SiaAndVacNumber(universe)
-    print(" $(nSia) single SIAs & $(nVac) single Vacancies")
+    println(" $(universe.history.siaClusterNums[end]) SIA clusters & $(universe.history.vacClusterNums[end]) Vacancy clusters")
+    print(" $(universe.history.siaNums[end]) single SIAs & $(universe.history.vacNums[end]) single Vacancies")
     println("")
     print("📊 ")
     print(:green, "Current distributions\n")
@@ -148,8 +136,8 @@ function Base.print(universe::Universe)
     print(:yellow, "Attributs\n")
     PrintHistory(universe.history.steps, [universe.history.vacClusterNums, universe.history.siaClusterNums], 
                 ["Vacancy","SIA"], "SIA/vacancy number")
-    PrintHistory(universe.history.steps, [universe.history.sinkedSiaNums, universe.history.annihilatedSiaNums], 
-                ["sinked","annihilated"], "Sinked/annihilated SIA")
+    #PrintHistory(universe.history.steps, [universe.history.sinkedSiaNums, universe.history.annihilatedSiaNums], 
+    #            ["sinked","annihilated"], "Sinked/annihilated SIA")
     for _ in 1:2
         println()
     end
@@ -164,6 +152,8 @@ function Log(universe::Universe, logName::String)
     write(file, " $(universe.history.vacClusterNums[end])")
     write(file, " $(universe.history.sinkedSiaNums[end])")
     write(file, " $(universe.history.annihilatedSiaNums[end])")
+    write(file, " $(universe.history.siaNums[end])")
+    write(file, " $(universe.history.vacNums[end])")
     write(file, "\n")
     close(file)
 end
@@ -171,10 +161,12 @@ end
 function InitLog(logName::String)
     file = open(logName, "w")
     write(file, "Step")
-    write(file, " nSia")
-    write(file, " nVac")
+    write(file, " nSiaCluster")
+    write(file, " nVacCluster")
     write(file, " sinked")
     write(file, " annihilated")
+    write(file, " nSia")
+    write(file, " nVac")
     write(file, "\n")
     close(file)
 end

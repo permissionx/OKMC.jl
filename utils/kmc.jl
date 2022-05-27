@@ -113,9 +113,9 @@ function PBCCoord!(universe::Universe, coord::Vector{Float64})
 end
 
 function Reaction!(universe::Universe, defect1::Defect, defect2::Defect, crossSign::Vector{Int64})
-    if defect1.type == defect2.type == 1
-        return
-    end
+    #if defect1.type == defect2.type == 1   # for no reaction for sia and sia
+    #    return
+    #end
     if defect1.size > defect2.size
         largeDefect = defect1
         largeDefectCoord = defect1.coord
@@ -168,21 +168,71 @@ function Changed!(universe::Universe, defect::Defect)
     end
 end
 
-
-function SiaProbabilities(size::Int64)
+function SiaFrequencies(universe::Universe, size::Int64)
     # 1 for migration, 2 for sterring
-    return [1.,0.0]
-end
-
-
-function VacProbabilities(size::Int64)
-    # 1 for migration, 2 for emittion
     if size == 1
-        return Float64[0.5,0.0]
+        return [universe.constants.siaMigrateFrequencies[size], universe.constants.siaSteerFrequency]
     else
-        return Float64[0,0.0000]
+        return [universe.constants.siaMigrateFrequencies[size], 0.0]
     end
 end
+
+function InitSiaFrequencies!(universe::Universe)
+    # units : s, eV
+    universe.constants.siaMigrationFrequencies = Float64[]
+    for i in 1:MAX_DEFECT_SIZE
+        k0 = SIA_K0*i^SIA_ALPHA
+        frequency = k0*exp(-SIA_MIGRATE_BARRIER/universe.temperature/k_B)
+        push!(universe.constants.siaMigrationFrequencies, frequency)
+    end
+    # todo: check the k0 for the steering ❓
+    universe.constants.siaSteerFrequency = SIA_K0*exp(-SIA_MIGRATE_BARRIER/universe.temperature/k_B)
+end
+
+
+function InitFrequencies!(universe::Universe)
+    InitVacFrequencies!(universe::Universe)
+    InitSiaFrequencies!(universe::Universe)
+end
+
+
+
+function VacFrequencies(universe::Universe, size::Int64)
+    # 1 for migration, 2 for emittion
+    return [universe.constants.vacMigrateFrequencies[size], universe.constants.vacEmitFrequencies[size]]
+end
+
+function InitVacFrequencies!(universe::Universe)
+    # units : s, eV
+    universe.constants.vacMigrationFrequencies = Float64[]
+    universe.constants.vacEmitFrequencies = Float64[]
+    k0 = VAC_K0
+    for i in 1:MAX_DEFECT_SIZE
+        if i <= length(VAC_MIGRATE_BARRIERS)
+            barrier = VAC_MIGRATE_BARRIERS[i]
+            frequency = k0*exp(-barrier/universe.temperature/k_B)
+            push!(universe.constants.vacMigrationFrequencies, frequency)
+        else
+            push!(universe.constants.vacMigrationFrequencies, 0.0)
+        end
+    end
+
+    # todo: check the k0 for the emit ❓
+    for i in 1:MAX_DEFECT_SIZE
+        if i == 1
+            push!(universe.constants.vacEmitFrequencies, 0.0)
+        else
+            if i<= length(VAC_BINDING_ENERGYS)
+                barrier = VAC_BINDING_ENERGYS[i] + VAC_MIGRATE_BARRIERS[1]
+            else
+                barrier = VAC_BINDING_ENERGYS[end] + VAC_MIGRATE_BARRIERS[1]
+            end
+            frequency = k0*exp(-barrier/universe.temperature/k_B)
+            push!(universe.constants.vacEmitFrequencies, frequency)
+        end
+    end
+end
+
 
 
 function ChangeSize!(universe::Universe, defect::Defect, size::Int64)
@@ -202,34 +252,34 @@ end
 function InitBehaviors!(universe::Universe, defect::Defect)
     if defect.type == 1
         types = [1, 3]
-        probabilities = SiaProbabilities(defect.size)
+        frequencies = SiaFrequencies(universe, defect.size)
     else
         types = [1, 2]
-        probabilities = VacProbabilities(defect.size)
+        frequencies = VacFrequencies(universe, defect.size)
     end
     behaviors = Behaviors()
     behaviors.types = types
-    behaviors.probabilities = probabilities
-    probability = sum(probabilities)
-    behaviors.probability = probability
+    behaviors.frequencies = frequencies
+    frequency = sum(frequencies)
+    behaviors.frequency = frequency
     defect.behaviors = behaviors
-    push!(universe.defectProbabilities, probability)
-    universe.totalProbability += probability
+    push!(universe.defectFrequencies, frequency)
+    universe.totalFrequency += frequency
 end
 
 function ChangeBehaviors!(universe::Universe, defect::Defect)
-    oldProbability = defect.behaviors.probability
+    oldFrequency = defect.behaviors.frequency
     if defect.type == 1
-        probabilities = SiaProbabilities(defect.size)
+        frequencies = SiaFrequencies(universe, defect.size)
     else
-        probabilities = VacProbabilities(defect.size)
+        frequencies = VacFrequencies(universe, defect.size)
     end
-    defect.behaviors.probabilities = probabilities
-    probability = sum(probabilities)
-    defect.behaviors.probability = probability
+    defect.behaviors.frequencies = frequencies
+    frequency = sum(frequencies)
+    defect.behaviors.frequency = frequency
     i = findfirst(x->x.index===defect.index, universe.defects)
-    universe.defectProbabilities[i] = probability
-    universe.totalProbability += probability - oldProbability
+    universe.defectFrequencies[i] = frequency
+    universe.totalFrequency += frequency - oldFrequency
 end
 
 
@@ -258,8 +308,8 @@ function Base.delete!(universe::Universe, defect::Defect)
     delete!(cell, defect)
     i = findfirst(x->x.index==defect.index, universe.defects)
     deleteat!(universe.defects, i)
-    deleteat!(universe.defectProbabilities, i)
-    universe.totalProbability -= defect.behaviors.probability
+    deleteat!(universe.defectFrequencies, i)
+    universe.totalFrequency -= defect.behaviors.frequency
 end
 
 
@@ -287,12 +337,12 @@ end
 
 #KMC
 function RandomADefect(universe::Universe)
-    weights = Weights(universe.defectProbabilities)
+    weights = Weights(universe.defectFrequencies)
     sample(universe.defects, weights)
 end
 
 function RandomABehavior(defect::Defect)
-    weights = Weights(defect.behaviors.probabilities)
+    weights = Weights(defect.behaviors.frequencies)
     sample(defect.behaviors.types, weights)
 end
 
@@ -363,11 +413,16 @@ end
 
 function IterStep!(universe::Universe)
     universe.nStep += 1
-    if universe.totalProbability != 0 
-        defect = RandomADefect(universe)
-        type = RandomABehavior(defect)
-        Behave!(universe, defect, type)
-    end
+    ForwardTime!(universe)
+    defect = RandomADefect(universe)
+    type = RandomABehavior(defect)
+    Behave!(universe, defect, type)
+end
+
+function ForwardTime!(universe::Universe)
+    universe.time += -1/universe.totalFrequency*log(1-rand())
+    # or simple verstion
+    # universe.time += 1/universe.totalFrequency
 end
 
 
@@ -390,11 +445,13 @@ function Init!(universe::Universe)
     RefreshFile(dumpName)
     InitCells!(universe)
     InitRadius!(universe)
+    universe.temperature = TEMPERATURE
+    InitFrequencies!(universe)
     run(`tput sc`)
 end
 
 
-function End(universe::Universe)
+function Finish!(universe::Universe)
     run(`tput sc`)
 end
 
@@ -444,6 +501,7 @@ end
 
 # todo: 
 # fix boundary cells ✔️
-# realistic probability ❓
+# realistic frequency ✔️
 # beatifify screen output ✔️
 # outpot dataframe for python plot ✔️
+# include cascade data ❓

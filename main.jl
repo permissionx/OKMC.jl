@@ -9,15 +9,16 @@ function Run!(universe::Universe)
         end
         #exit()
         IterStep!(universe)
-        @do_every 1E6 quote 
+        @do_every 1E5 quote 
             Record!(universe)
         end
-        @do_every 1E8 quote
+        @do_every 1E7 quote
             print(universe)
             Dump(universe, dumpName)
         end
     end
 end
+
 
 Random.seed!(31415926)
 const SIA_DISAPPEAR_RATE = 0.00005
@@ -25,6 +26,18 @@ const MAX_DEFECT_SIZE = 30000
 const OUTPUT_HEIGHTS = 50
 mapSize = [200.,200.,200.]
 cellLength = 20
+const k_B = 8.617E-5 # eV/K
+const VAC_MIGRATE_BARRIERS = [1.66, 1.66, 0.89, 1.56]  # eV
+const VAC_K0 = 6E12 # s
+const VAC_BINDING_ENERGYS = [0.0, -0.12, 0.01, 0.64, 0.52, 1.21, 0.77, 0.96, 0.85, 1.56, 0.96, 1.56, 1.21, 2.49, 2.62,
+                             0.96, 1.00, 0.85, 0.88, 1.59, 1.76, 1.79, 2.14, 2.56]
+const SIA_K0 = 1.43E12
+const SIA_ALPHA = -0.365
+const SIA_MIGRATE_BARRIER = 0.04
+const SIA_STEER_BARRIER = 0.38
+const TEMPERATURE = 300 # K
+
+
 universe = Universe(mapSize, cellLength)
 #const dumpName = "./run/run.dump"
 const dumpName = "./run.dump"
@@ -42,7 +55,7 @@ Run!(universe)
 
 # todo: 
 # fix boundary cells ✔️
-# realistic probability ❓
+# realistic frequency ❓
 # beatifify screen output ✔️
 # outpot dataframe for python plot ✔️
 
